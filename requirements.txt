@@ -1,0 +1,6 @@
+# Python 3.8–3.13. Windows 7 安装包请用 Python 3.8 打包（3.9 起不支持 Windows 7）。
+pypdf>=4.0,<5
+Pillow>=9.5,<11
+qrcode>=7.4,<8
+python-barcode>=0.15,<0.16
+pyinstaller==6.3.0
