@@ -28,9 +28,15 @@ def assemble():
     from officertools.catalog import TOOLS
     for tool in TOOLS:
         entry = TARGET / "tools" / tool.category / (tool.exe + ".exe")
-        if entry.stat().st_size > 16384:
-            raise RuntimeError("Tool launcher unexpectedly contains runtime data: " + str(entry))
         with pefile.PE(str(entry)) as image:
+            # Multi-size icon artwork is data, not a duplicated application runtime.
+            icon_bytes = sum(section.SizeOfRawData for section in image.sections
+                             if section.Name.rstrip(b"\0") == b".rsrc")
+            if entry.stat().st_size - icon_bytes > 16384:
+                raise RuntimeError("Tool launcher unexpectedly contains runtime data: " + str(entry))
+            resources = getattr(image, "DIRECTORY_ENTRY_RESOURCE", None)
+            if not resources or {item.id for item in resources.entries} != {3, 14}:
+                raise RuntimeError("Launcher must contain only icon resources: " + str(entry))
             imports = {item.dll.decode().lower() for item in image.DIRECTORY_ENTRY_IMPORT}
             if not imports <= {"kernel32.dll", "user32.dll"}:
                 raise RuntimeError("Unexpected launcher dependency: " + str(imports))

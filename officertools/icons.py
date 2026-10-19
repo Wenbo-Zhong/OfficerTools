@@ -212,6 +212,18 @@ def render_icon(tool_id, category, size=52, dark=False):
     return im.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def render_app_icon(size=256):
+    """Toolbox emblem shared by the Windows executable icon sizes."""
+    im = Image.new("RGBA", (256, 256))
+    draw = ImageDraw.Draw(im)
+    draw.rounded_rectangle((0, 0, 255, 255), radius=58, fill="#5865df")
+    draw.rounded_rectangle((88, 56, 168, 103), radius=15, outline="white", width=13)
+    draw.rounded_rectangle((43, 92, 213, 202), radius=20, fill="white")
+    draw.line((45, 137, 211, 137), fill="#5865df", width=9)
+    draw.rounded_rectangle((113, 123, 143, 157), radius=6, fill="#5865df")
+    return im.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def tool_icon(app, tool, size=52):
     cache = getattr(app, "_icon_cache", None)
     if cache is None:

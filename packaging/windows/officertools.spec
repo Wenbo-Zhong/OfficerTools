@@ -34,6 +34,7 @@ exe = EXE(
     a.datas,
     [],
     name="办公工具箱",
+    icon=os.path.join(root, ".toolchain", "executable-icons", "OfficerTools.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

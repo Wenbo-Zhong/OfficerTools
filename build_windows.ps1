@@ -46,18 +46,11 @@ if (Test-Path -LiteralPath $distRoot) {
 if (Test-Path -LiteralPath $buildRoot) { Remove-Item -LiteralPath $buildRoot -Recurse -Force }
 $releaseOutput = Join-Path $distRoot 'OfficerTools-release'
 New-Item -ItemType Directory -Path $releaseOutput -Force | Out-Null
+& $Python -X utf8 packaging\windows\executable_icons.py
+if ($LASTEXITCODE -ne 0) { throw "Executable icon generation failed." }
 & $Python -m PyInstaller --noconfirm --clean --distpath $releaseOutput packaging\windows\officertools.spec
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed. Build stopped." }
-& $Python -c "import shutil,sys; from pathlib import Path; from officertools.catalog import TOOLS; output=Path(sys.argv[1]); root=output/'OfficerTools'; main='\u529e\u516c\u5de5\u5177\u7bb1.exe'; base=output/main; root.mkdir(parents=True, exist_ok=True); shutil.copy2(str(base), str(root/main)); base=Path(sys.argv[2]);
-assert base.is_file(), base
-copied=[]
-for tool in TOOLS:
-    folder=root/'tools'/tool.category
-    folder.mkdir(parents=True, exist_ok=True)
-    dest=folder/(tool.exe+'.exe')
-    shutil.copy2(str(base), str(dest))
-    copied.append(dest.name)
-print('created', len(copied), 'native tool launchers in', root)" $releaseOutput $launcherOutput
+& $Python -X utf8 packaging\windows\executable_icons.py --output $releaseOutput --template $launcherOutput
 if ($LASTEXITCODE -ne 0) { throw "Tool entry point generation failed." }
 $mainExecutableName = (-join [char[]](0x529e,0x516c,0x5de5,0x5177,0x7bb1)) + '.exe'
 Remove-Item -LiteralPath (Join-Path $releaseOutput $mainExecutableName) -Force
