@@ -33,6 +33,9 @@ def main(argv=None):
     if argv and argv[0] == "--run":
         _cli(tool_id, argv[1:])
         return
+    from officertools.paths import configure_bundled_fonts
+
+    configure_bundled_fonts()
     from officertools.dpi import enable
 
     enable()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import re
 
 _enabled = False
 
@@ -60,6 +61,36 @@ def system_dpi(widget=None) -> float:
         except Exception:
             pass
         return 96.0
+    if sys.platform.startswith("linux"):
+        # Tk reports 96 DPI on many Ubuntu Wayland/XWayland sessions even when
+        # GNOME has published the real scale as Xft.dpi (for example 192 DPI
+        # on a 200% HiDPI display). Read the X resource directly so Tk widgets
+        # and our pixel-based layout use the same monitor scale.
+        try:
+            import ctypes
+            import ctypes.util
+
+            library = ctypes.util.find_library("X11")
+            if library:
+                x11 = ctypes.CDLL(library)
+                x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
+                x11.XOpenDisplay.restype = ctypes.c_void_p
+                x11.XResourceManagerString.argtypes = [ctypes.c_void_p]
+                x11.XResourceManagerString.restype = ctypes.c_char_p
+                x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+                display = x11.XOpenDisplay(None)
+                if display:
+                    try:
+                        resources = x11.XResourceManagerString(display) or b""
+                    finally:
+                        x11.XCloseDisplay(display)
+                    match = re.search(rb"(?im)^\s*Xft\.dpi\s*:\s*([0-9.]+)", resources)
+                    if match:
+                        dpi = float(match.group(1))
+                        if 72.0 <= dpi <= 384.0:
+                            return dpi
+        except Exception:
+            pass
     if widget is not None:
         try:
             return float(widget.winfo_fpixels("1i"))

@@ -27,7 +27,7 @@ Windows：最低支持 64 位 Windows 10。执行 `powershell -ExecutionPolicy B
 
 macOS：在 Apple Silicon Mac 上安装 Xcode Command Line Tools、OpenCL headers 和 Tesseract（`brew install opencl-headers tesseract`）后执行 `sh build_macos.sh`，得到内置 Qwen3.5-2B、Tesseract 英文及简体中文模型，以及 llama.cpp Metal、OpenCL、CPU 后端的 `dist/OfficerTools.app`。首次构建会下载约 2 GB Qwen 模型并本机编译 llama.cpp；Qwen 自动按 Metal、OpenCL、CPU 顺序回退，支持没有传统 OCR 语言包的语言离线识别。传统模型固定为英文 `eng` 和简体中文 `chi_sim`，默认组合识别中英文。
 
-Ubuntu：执行 `sh build_linux.sh`，得到 `dist/officertools`。
+Ubuntu x86_64：执行 `sh build_linux.sh`，得到可双击启动的单文件 `dist/OfficerTools`。脚本会在 `.toolchain/` 下创建 Conda 构建环境和 Ubuntu 原生运行环境，并预置 FFmpeg、Poppler、Ghostscript、Tesseract 英文/简中模型、llama.cpp CPU 运行时，以及与 Windows 版相同哈希的 Qwen3.5-2B 模型。界面会读取 Ubuntu 的 Xft DPI，并打包 Xft 版 Tk 与 Noto CJK 中文字体，支持高分辨率屏幕及没有预装中文字体的系统。单文件约 2 GB；首次启动会解压运行资源，需要额外约 2.5 GB 临时磁盘空间。Qwen 在 Ubuntu 使用 CPU 推理；有 Tesseract 语言模型时优先使用 Tesseract。
 
 ## 需要另外安装的程序
 

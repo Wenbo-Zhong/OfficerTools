@@ -1,0 +1,13 @@
+name: officertools-linux-runtime
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - cmake=4.4.4
+  - ninja=1.13.2
+  - pkg-config
+  - ffmpeg=9.0.2
+  - poppler=26.09.0
+  - poppler-data=0.4.12
+  - tesseract=5.5.3
+  - ghostscript=10.08.0

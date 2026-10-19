@@ -25,7 +25,8 @@ _active_lock=threading.Lock()
 
 def backend_order():
     if sys.platform == "darwin": return ["metal","opencl","cpu"]
-    return ["vulkan","cpu"]
+    if sys.platform == "win32": return ["vulkan","cpu"]
+    return ["cpu"]
 
 
 def stop_owned_servers():
@@ -99,6 +100,11 @@ class Session:
         env=os.environ.copy()
         # Parent applications and user profiles must not inject a remote model or endpoint.
         env={k:v for k,v in env.items() if not k.startswith(("LLAMA_ARG_","LLAMA_SERVER_"))}
+        if sys.platform.startswith("linux"):
+            libraries=[root/"vendor/lib",root/"vendor/llama.cpp/cpu/lib"]
+            libraries=[path for path in libraries if path.is_dir()]
+            if libraries:
+                env["LD_LIBRARY_PATH"] = ":".join(str(path) for path in libraries)+(":"+env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
         if self.backend!="cpu":
             listed=subprocess.run([str(executable),"--list-devices"],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                                   env=env,cwd=str(executable.parent),timeout=15,encoding="utf-8",errors="replace",**options)
@@ -192,7 +198,9 @@ class Recognizer:
     def __init__(self,job):
         self.job=job;self.session=None
         self.backend=job.opt("backend","auto")
-        choices=("auto","metal","opencl","cpu") if sys.platform=="darwin" else ("auto","vulkan","cpu")
+        if sys.platform=="darwin": choices=("auto","metal","opencl","cpu")
+        elif sys.platform=="win32": choices=("auto","vulkan","cpu")
+        else: choices=("auto","cpu")
         if self.backend not in choices: raise RuntimeError("当前系统不支持所选 Qwen 运行方式。")
         model_files()
 

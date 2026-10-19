@@ -94,7 +94,29 @@ def which(name: str) -> Optional[str]:
 def run_cmd(args: List[str], cwd: Optional[str] = None) -> str:
     options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     program = Path(args[0]).resolve()
-    if program.parent.name == "bin" and program.parent.parent.name == "Library" and program.parent.parent.parent.name == "vendor":
+    if sys.platform.startswith("linux"):
+        root = application_root()
+        library = root / "vendor/lib"
+        env = os.environ.copy()
+        library_dirs = [library, root / "vendor/llama.cpp/cpu/lib"]
+        library_dirs = [path for path in library_dirs if path.is_dir()]
+        if library_dirs:
+            env["LD_LIBRARY_PATH"] = ":".join(str(path) for path in library_dirs) + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
+        poppler_data = root / "vendor/share/poppler"
+        if poppler_data.is_dir():
+            env["POPPLER_DATADIR"] = str(poppler_data)
+        fonts = root / "vendor/etc/fonts"
+        if fonts.is_dir():
+            env["FONTCONFIG_PATH"] = str(fonts)
+            if (fonts / "fonts.conf").is_file():
+                env["FONTCONFIG_FILE"] = str(fonts / "fonts.conf")
+        gs_share = root / "vendor/ghostscript/share/ghostscript"
+        if gs_share.is_dir():
+            resources = sorted(gs_share.glob("*/Resource"))
+            if resources:
+                env["GS_LIB"] = str(resources[-1])
+        options["env"] = env
+    if sys.platform == "win32" and program.parent.name == "bin" and program.parent.parent.name == "Library" and program.parent.parent.parent.name == "vendor":
         vendor = program.parent.parent.parent
         env = os.environ.copy()
         env["FONTCONFIG_PATH"] = str(vendor / "Library/etc/fonts")
