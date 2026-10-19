@@ -449,14 +449,17 @@ class App(object):
         self.heading = top.winfo_children()[0]
         search_wrap = tk.Frame(top, bg=CARD, highlightbackground=LINE, highlightthickness=1)
         search_wrap.pack(side="right")
-        search_icon = tk.Label(search_wrap, text="⌕", font=self.font_card, bg=CARD, fg=MUTED)
-        search_icon.pack(side="left", padx=(self.px(11), self.px(5)), pady=self.px(4))
+        icon_slot = tk.Frame(search_wrap, bg=CARD, width=self.px(36), height=self.px(38))
+        icon_slot.pack(side="left", fill="y")
+        icon_slot.pack_propagate(False)
+        search_icon = tk.Label(icon_slot, text="⌕", font=(self.family, 18), bg=CARD, fg=MUTED)
+        search_icon.place(relx=0.5, rely=0.5, anchor="center")
         placeholder = "搜索工具"
         search_text = tk.StringVar(value=placeholder)
         entry = tk.Entry(search_wrap, textvariable=search_text, font=self.font, bg=CARD, fg=MUTED,
                          relief="flat", width=22, insertbackground=INK, highlightthickness=0,
                          borderwidth=0)
-        entry.pack(side="left", padx=(0, self.px(5)), pady=self.px(5))
+        entry.pack(side="left", padx=(0, self.px(5)), pady=self.px(8))
 
         def sync_search(*_):
             value = search_text.get()
@@ -481,12 +484,15 @@ class App(object):
         if sys.platform == "darwin":
             self.root.bind("<Command-f>", lambda e: (entry.focus_set(), "break"))
         entry.bind("<Escape>", lambda e: (search_text.set(""), "break"))
-        clear = tk.Label(search_wrap, text="×", font=self.font, bg=CARD, fg=MUTED,
-                         cursor="hand2", padx=self.px(8), pady=self.px(4))
+        clear_slot = tk.Frame(search_wrap, bg=CARD, width=self.px(34), height=self.px(38))
+        clear_slot.pack(side="left", fill="y", padx=(0, self.px(3)))
+        clear_slot.pack_propagate(False)
+        clear = tk.Label(clear_slot, text="×", font=(self.family, 18), bg=CARD, fg=MUTED,
+                         cursor="hand2")
+        clear.place(relx=0.5, rely=0.5, anchor="center")
         clear.bind("<Button-1>", lambda _event: (search_text.set(""), entry.focus_set()))
         clear.bind("<Enter>", lambda _event: clear.configure(fg=INK))
         clear.bind("<Leave>", lambda _event: clear.configure(fg=MUTED))
-        clear.pack(side="left", padx=(0, self.px(6)))
 
         info = tk.Frame(main, bg=PAGE)
         info.pack(fill="x", padx=self.px(28), pady=(0, self.px(16)))
