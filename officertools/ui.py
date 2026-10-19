@@ -449,15 +449,41 @@ class App(object):
         self.heading = top.winfo_children()[0]
         search_wrap = tk.Frame(top, bg=CARD, highlightbackground=LINE, highlightthickness=1)
         search_wrap.pack(side="right")
-        tk.Label(search_wrap, text="⌕ 搜索", font=self.font_small, bg=CARD, fg=MUTED).pack(side="left", padx=(self.px(10), 0))
-        entry = tk.Entry(search_wrap, textvariable=self.query, font=self.font, bg=CARD, fg=INK, relief="flat", width=24, insertbackground=INK, highlightthickness=0)
-        entry.pack(side="left", padx=self.px(8), pady=self.px(7))
+        search_icon = tk.Label(search_wrap, text="⌕", font=self.font_card, bg=CARD, fg=MUTED)
+        search_icon.pack(side="left", padx=(self.px(11), self.px(5)), pady=self.px(4))
+        placeholder = "搜索工具"
+        search_text = tk.StringVar(value=placeholder)
+        entry = tk.Entry(search_wrap, textvariable=search_text, font=self.font, bg=CARD, fg=MUTED,
+                         relief="flat", width=22, insertbackground=INK, highlightthickness=0,
+                         borderwidth=0)
+        entry.pack(side="left", padx=(0, self.px(5)), pady=self.px(5))
+
+        def sync_search(*_):
+            value = search_text.get()
+            is_placeholder = value == placeholder
+            entry.configure(fg=MUTED if is_placeholder else INK)
+            self.query.set("" if is_placeholder else value)
+
+        def focus_search(_event=None):
+            if search_text.get() == placeholder:
+                search_text.set("")
+                entry.configure(fg=INK)
+
+        def blur_search(_event=None):
+            if not search_text.get():
+                search_text.set(placeholder)
+
+        search_text.trace_add("write", sync_search)
         self.query.trace_add("write", lambda *_: self.refresh())
-        self.root.bind("<Control-f>", lambda e: entry.focus_set())
-        entry.bind("<Escape>", lambda e: self.query.set(""))
+        entry.bind("<FocusIn>", focus_search)
+        entry.bind("<FocusOut>", blur_search)
+        self.root.bind("<Control-f>", lambda e: (entry.focus_set(), "break"))
+        if sys.platform == "darwin":
+            self.root.bind("<Command-f>", lambda e: (entry.focus_set(), "break"))
+        entry.bind("<Escape>", lambda e: (search_text.set(""), "break"))
         clear = tk.Label(search_wrap, text="×", font=self.font, bg=CARD, fg=MUTED,
-                         cursor="hand2", padx=8, pady=5)
-        clear.bind("<Button-1>", lambda _event: self.query.set(""))
+                         cursor="hand2", padx=self.px(8), pady=self.px(4))
+        clear.bind("<Button-1>", lambda _event: (search_text.set(""), entry.focus_set()))
         clear.bind("<Enter>", lambda _event: clear.configure(fg=INK))
         clear.bind("<Leave>", lambda _event: clear.configure(fg=MUTED))
         clear.pack(side="left", padx=(0, self.px(6)))
@@ -466,7 +492,8 @@ class App(object):
         info.pack(fill="x", padx=self.px(28), pady=(0, self.px(16)))
         self.result_label = tk.Label(info, font=self.font_small, bg=PAGE, fg=MUTED)
         self.result_label.pack(side="left")
-        tk.Label(info, text="Ctrl + F 搜索  ·  ☆ 收藏常用工具", font=self.font_small, bg=PAGE, fg=MUTED).pack(side="right")
+        shortcut = "⌘ F 搜索" if sys.platform == "darwin" else "Ctrl + F 搜索"
+        tk.Label(info, text=shortcut + "  ·  ☆ 收藏常用工具", font=self.font_small, bg=PAGE, fg=MUTED).pack(side="right")
 
         list_host = tk.Frame(main, bg=PAGE)
         list_host.pack(fill="both", expand=True, padx=self.px(16), pady=(0, self.px(12)))
