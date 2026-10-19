@@ -2,6 +2,7 @@
 """Tool catalog aligned with the OfficeBox suites."""
 from __future__ import annotations
 
+import sys
 from typing import Dict, List, NamedTuple
 
 
@@ -362,8 +363,10 @@ for _tool in TOOLS:
     _fields = list(_tool.fields) + list(_extra.get(_tool.id, ()))
     if _tool.id.startswith("ocr-"):
         _fields=[f._replace(label="识别语言",help="默认 chi_sim+eng；也可填日语、jpn、俄语、rus 等。填 auto 自动判断语言，将直接使用 Qwen。") if f.key=="lang" else f for f in _fields]
+        backends=("auto","metal","opencl","cpu") if sys.platform=="darwin" else ("auto","vulkan","cpu")
+        backend_help=("auto：优先 Metal，再尝试 OpenCL，最后回退 CPU。" if sys.platform=="darwin" else "auto：优先 Vulkan，失败后改用 CPU。")+"Qwen 较慢且占用更多内存。"
         _fields += [F("engine","识别引擎","choice","auto",("auto","tesseract","qwen"),"auto：已安装的语言用 Tesseract，缺少语言包时用 Qwen；也可手动指定。"),
-                    F("backend","Qwen 运行方式","choice","auto",("auto","vulkan","cpu"),"auto：优先 Vulkan，失败后改用 CPU。Qwen 较慢且占用更多内存。"),
+                    F("backend","Qwen 运行方式","choice","auto",backends,backend_help),
                     F("psm","Tesseract 页面分割方式","choice","3",("3","4","6","7","11"),"3：自动版面；4：单栏；6：整块文字；7：单行；11：零散文字。"),
                     F("output","输出格式","choice","both" if _tool.id=="ocr-pdf" else "text",("text","both","searchable","hocr","tsv"),"text：文字；both/searchable：另生成可搜索 PDF；hocr/tsv：文字位置与识别信息。")]
         if _tool.id=="ocr-pdf": _fields=[f._replace(kind="files") if f.key=="file" else f for f in _fields]

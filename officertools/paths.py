@@ -7,6 +7,9 @@ def application_root():
     if not getattr(sys, "frozen", False):
         return Path(__file__).resolve().parents[1]
     directory = Path(sys.executable).resolve().parent
+    # PyInstaller stores --add-data files in Contents/Resources on macOS.
+    if sys.platform == "darwin":
+        return directory.parent / "Resources"
     # Walk only the exact packaged tools layout, not arbitrary ancestor folders.
     if directory.parent.name == "tools":
         return directory.parent.parent

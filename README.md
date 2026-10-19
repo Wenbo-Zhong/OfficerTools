@@ -8,7 +8,7 @@
 
 ## 运行
 
-需要 Python 3.8 到 3.13。Windows 7 只能用 Python 3.8。
+需要 Python 3.8 到 3.13。Windows 发布包要求 64 位 Windows 10 或更新版本；使用 Python 3.12 构建。
 
 ```text
 pip install -r requirements.txt
@@ -19,13 +19,13 @@ python -m officertools pdf-merge --run files=a.pdf|b.pdf
 
 ## 打包
 
-Windows：在仓库根目录执行 `powershell -ExecutionPolicy Bypass -File build_windows.ps1`，需要 Python 3.8 和 MinGW-w64 GCC。每次构建先清理旧输出，最终只保留 `dist/OfficerTools-release/`，内含 `OfficerTools/` 和完整发布包 `OfficerTools-Windows-x64.zip`；`build/` 只保留当前构建目录。重新构建前请关闭正在运行的旧版程序。`办公工具箱.exe` 保存共用运行环境，各工具 EXE 是仅依赖 Windows 系统 DLL 的原生启动器，不再重复打包 Python 或转换依赖。请保留完整目录结构，各工具启动器需要根目录的主程序；使用内置组件时还需要 `vendor` 文件夹。对外分发时请保留完整的 `sources` 和 `licenses`。发布包内置 Ghostscript、Poppler 和 FFmpeg，优先使用内置组件，无需配置 PATH。主程序仍用 Python 3.8 构建，但内置组件面向现代 64 位 Windows，整包尚未验证 Windows 7 兼容性。
+Windows：最低支持 64 位 Windows 10。执行 `powershell -ExecutionPolicy Bypass -File build_windows.ps1`，需要 64 位 Python 3.12 和 MinGW-w64 GCC。每次构建先清理旧输出，最终只保留 `dist/OfficerTools-release/`，内含 `OfficerTools/` 和完整发布包 `OfficerTools-Windows-x64.zip`；`build/` 只保留当前构建目录。重新构建前请关闭正在运行的旧版程序。`办公工具箱.exe` 保存共用运行环境，各工具 EXE 是仅依赖 Windows 系统 DLL 的原生启动器，不再重复打包 Python 或转换依赖。请保留完整目录结构，各工具启动器需要根目录的主程序；使用内置组件时还需要 `vendor` 文件夹。对外分发时请保留完整的 `sources` 和 `licenses`。发布包内置 Ghostscript、Poppler、FFmpeg、Tesseract 和 llama.cpp，优先使用内置组件，无需配置 PATH。应用和扩展组件均以现代 64 位 Windows 为目标，不支持 Windows 7/8/8.1。
 
 构建脚本会按 `packaging/windows/vendor-lock.json` 下载并校验组件及对应源码，收集许可证、补丁和构建材料。首次构建需要网络和足够的磁盘空间；组件缓存位于 `.toolchain/`。
 
 程序目录根部仅保留总入口，独立工具按 `tools/类别/工具名.exe` 整理，例如 `tools/PDF/PDF合并.exe`。分类目录中的工具会自动查找根目录共享的组件、许可证和源码文件夹。
 
-macOS：把仓库拷到 Mac 后执行 `sh build_macos.sh`，得到一个 `dist/OfficerTools.app`。
+macOS：在 Apple Silicon Mac 上安装 Xcode Command Line Tools、OpenCL headers 和 Tesseract（`brew install opencl-headers tesseract`）后执行 `sh build_macos.sh`，得到内置 Qwen3.5-2B、Tesseract 英文及简体中文模型，以及 llama.cpp Metal、OpenCL、CPU 后端的 `dist/OfficerTools.app`。首次构建会下载约 2 GB Qwen 模型并本机编译 llama.cpp；Qwen 自动按 Metal、OpenCL、CPU 顺序回退，支持没有传统 OCR 语言包的语言离线识别。传统模型固定为英文 `eng` 和简体中文 `chi_sim`，默认组合识别中英文。
 
 Ubuntu：执行 `sh build_linux.sh`，得到 `dist/officertools`。
 

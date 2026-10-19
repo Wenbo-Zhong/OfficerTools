@@ -1,6 +1,6 @@
 # Qwen 多语言备用识别
 
-Windows 完整包内置 llama.cpp b11669（v0.7.0 源码提交 620d2225c）、Qwen3.5-2B Q4_K_M 权重和 F16 视觉投影文件，支持 Vulkan 或纯 CPU。模型来自 Unsloth 对 Qwen 官方模型的 GGUF 转换，锁定版本与 SHA256，未自行训练或更改模型权重。
+Windows 完整包内置 llama.cpp b11669（v0.7.0 源码提交 620d2225c）、Qwen3.5-2B Q4_K_M 权重和 F16 视觉投影文件，支持 Vulkan 或纯 CPU。Apple Silicon 的 macOS `.app` 在本机编译同版本 llama.cpp，内置相同模型及 Metal、OpenCL、CPU 后端。模型来自 Unsloth 对 Qwen 官方模型的 GGUF 转换，锁定版本与 SHA256，未自行训练或更改模型权重。
 
 ## 选择逻辑
 
@@ -12,7 +12,7 @@ Windows 完整包内置 llama.cpp b11669（v0.7.0 源码提交 620d2225c）、Qw
 
 语言默认 `chi_sim+eng`，保持中英文的轻量处理方式。可填 `日语`、`jpn`、`俄语`、`rus`、`法语`、`fra` 等；多语言可用 `+` 连接。语言填 `auto` 时直接由 Qwen 处理，适合不知道语种的情况。按语言选择回退与自动判断图片语言是两种不同操作，默认不会先对每张图执行大模型检测。
 
-Qwen 的 `auto` 运行方式先尝试 Vulkan，检测不到显卡或推理失败时关闭该进程并改用 CPU，同一批后续页面继续复用 CPU。可显式选择 `vulkan` 或 `cpu`。OpenCL 官方后端主要面向 Adreno，本 Windows 包未构建该后端。Vulkan/CPU 都已用无对应 Tesseract 语言包的日语样本实测。
+Windows 上 Qwen 的 `auto` 运行方式先尝试 Vulkan，失败后回退 CPU。Apple Silicon macOS 上依次尝试 Metal、OpenCL、CPU；失败的后端进程会关闭，成功后同一批后续页面复用该后端。也可手动选择可用的后端。macOS 构建在目标 Mac 本机编译 llama.cpp。
 
 ## 输出与限制
 
@@ -25,7 +25,7 @@ Qwen 的 `auto` 运行方式先尝试 Vulkan，检测不到显卡或推理失败
 
 ## 发布材料
 
-`vendor/llama.cpp/cpu/` 与 `vendor/llama.cpp/vulkan/` 只包含服务程序、实际导入的 DLL 和供 CPU 自动选择的指令集后端，不携带命令行聊天、量化、测速等无关工具。所有工具共用 `models/Qwen3.5-2B/`，独立工具 EXE 保持小型原生入口。
+Windows 包的 `vendor/llama.cpp/cpu/` 与 `vendor/llama.cpp/vulkan/` 只包含服务程序和实际依赖。macOS `.app` 的 `Contents/Resources/vendor/llama.cpp/` 含本机编译的 metal、opencl、cpu 服务程序。所有工具共用 `models/Qwen3.5-2B/`，模型权重和视觉投影文件与 Windows 锁定版本一致。
 
 `packaging/windows/llama-lock.json` 记录下载地址与哈希；`prepare_llama.py` 可断点下载并校验。对应源码、许可证及组件记录随 ZIP 发布。模型与构建缓存受 `.gitignore` 排除，不推入源码仓库。
 

@@ -16,7 +16,7 @@ The complete release includes the following independently executed components:
 | ReportLab | 4.2.5 | BSD | https://www.reportlab.com/ |
 | python-docx | 1.1.2 | MIT | https://github.com/python-openxml/python-docx |
 | pdf417gen | 0.8.1 | MIT | https://github.com/ihabunek/pdf417-py |
-| Tesseract | 5.5.0 | Apache-2.0 | https://github.com/tesseract-ocr/tesseract |
+| Tesseract | 5.5.0 (Windows), 5.5.3 (macOS) | Apache-2.0 | https://github.com/tesseract-ocr/tesseract |
 | tessdata_fast (eng, chi_sim only) | 4.1.0 | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast |
 | llama.cpp | b11669, v0.7.0 source commit 620d2225c | MIT and bundled dependency notices | https://github.com/ggml-org/llama.cpp |
 | Qwen3.5-2B, Q4_K_M GGUF + F16 visual projector | Unsloth conversion revision f6d5376be1edb4d416d56da11e5397a961aca8ae | Apache-2.0 | https://huggingface.co/unsloth/Qwen3.5-2B-GGUF |
@@ -60,9 +60,8 @@ license terms, not relicensed as AGPL. Their supplied notices are retained.
 
 Python, Tcl/Tk and Python package notices are in `licenses/`. The PyInstaller
 bootloader's license exception is included with its notices. Fonts and CMap
-data retain their own notices. The complete portable release targets modern
-64-bit Windows; compatibility of bundled native components with Windows 7 has
-not been established.
+data retain their own notices. The complete portable release targets 64-bit
+Windows 10 or newer. Windows 7, Windows 8 and Windows 8.1 are not supported.
 
 This package is supplied without warranty, as described in the applicable
 licenses. Source and build scripts for OfficerTools are included so recipients

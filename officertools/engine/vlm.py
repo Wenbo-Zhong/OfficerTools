@@ -8,6 +8,7 @@ import re
 import secrets
 import socket
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -20,6 +21,11 @@ from .common import Cancelled
 
 _active=set()
 _active_lock=threading.Lock()
+
+
+def backend_order():
+    if sys.platform == "darwin": return ["metal","opencl","cpu"]
+    return ["vulkan","cpu"]
 
 
 def stop_owned_servers():
@@ -73,7 +79,8 @@ class Session:
 
     def start(self):
         root,model,projector=model_files()
-        executable=root/"vendor/llama.cpp"/self.backend/"llama-server.exe"
+        binary="llama-server.exe" if os.name=="nt" else "llama-server"
+        executable=root/"vendor/llama.cpp"/self.backend/binary
         if not executable.is_file(): raise RuntimeError("缺少 "+self.backend+" 推理运行时。请使用完整发布包。")
         with socket.socket() as sock:
             sock.bind(("127.0.0.1",0));port=sock.getsockname()[1]
@@ -92,17 +99,18 @@ class Session:
         env=os.environ.copy()
         # Parent applications and user profiles must not inject a remote model or endpoint.
         env={k:v for k,v in env.items() if not k.startswith(("LLAMA_ARG_","LLAMA_SERVER_"))}
-        if self.backend=="vulkan":
+        if self.backend!="cpu":
             listed=subprocess.run([str(executable),"--list-devices"],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                                   env=env,cwd=str(executable.parent),timeout=15,encoding="utf-8",errors="replace",**options)
-            devices=re.findall(r"^\s*(Vulkan\d+): (.+)$",listed.stdout,re.M)
-            if not devices: raise RuntimeError("未检测到可用的 Vulkan 显卡，请选择 CPU 或更新显卡驱动。")
+            prefix={"vulkan":"Vulkan","metal":"MTL","opencl":"OpenCL"}[self.backend]
+            devices=re.findall(r"^\s*("+prefix+r"\d+): (.+)$",listed.stdout,re.M)
+            if not devices: raise RuntimeError("未检测到可用的 "+self.backend+" 设备。")
             def priority(device):
                 name=device[1].lower()
                 return 3 if "nvidia" in name else 2 if "radeon rx" in name or "arc" in name else 1
             device=max(devices,key=priority)
             args += ["--device",device[0],"--mmproj-device",device[0]]
-            self.job.checkpoint(0,"Qwen 使用显卡："+device[1])
+            self.job.checkpoint(0,"Qwen 使用 "+self.backend+" 显卡："+device[1])
         self.process=subprocess.Popen(args,stdout=self.log,stderr=subprocess.STDOUT,stdin=subprocess.DEVNULL,
                                       cwd=str(executable.parent),env=env,**options)
         with _active_lock: _active.add(self.process)
@@ -184,7 +192,8 @@ class Recognizer:
     def __init__(self,job):
         self.job=job;self.session=None
         self.backend=job.opt("backend","auto")
-        if self.backend not in ("auto","vulkan","cpu"): raise RuntimeError("运行方式应为 auto、vulkan 或 cpu。")
+        choices=("auto","metal","opencl","cpu") if sys.platform=="darwin" else ("auto","vulkan","cpu")
+        if self.backend not in choices: raise RuntimeError("当前系统不支持所选 Qwen 运行方式。")
         model_files()
 
     def __enter__(self): return self
@@ -193,7 +202,7 @@ class Recognizer:
         if self.session: self.session.close()
 
     def transcribe(self,path,language):
-        candidates=["vulkan","cpu"] if self.backend=="auto" else [self.backend]
+        candidates=backend_order() if self.backend=="auto" else [self.backend]
         for backend in candidates:
             if self.session and self.session.backend!=backend:
                 # If an earlier page already fell back, stay on CPU.
@@ -208,4 +217,6 @@ class Recognizer:
             except Exception:
                 if self.session: self.session.close();self.session=None
                 if self.backend!="auto" or backend=="cpu": raise
-                self.job.checkpoint(0,"Vulkan 无法完成识别，正在改用 CPU…")
+                next_backend=candidates[candidates.index(backend)+1]
+                labels={"metal":"Metal","opencl":"OpenCL","vulkan":"Vulkan","cpu":"CPU"}
+                self.job.checkpoint(0,labels.get(backend,backend)+" 无法完成识别，正在尝试 "+labels.get(next_backend,next_backend)+"…")

@@ -2,6 +2,8 @@
 
 Windows ZIP 包内置 Tesseract 5.5.0（Apache-2.0）及 tessdata_fast 4.1.0 的简体中文 `chi_sim`、英文 `eng` 模型，无需另外安装、配置 PATH 或联网下载。只打包这两种语言及运行时实际使用的 DLL，不带全部语言模型。
 
+Apple Silicon macOS `.app` 同样内置 Tesseract、tessdata_fast 4.1.0 的 `chi_sim` 和 `eng` 模型，以及 Qwen3.5-2B。macOS 版 llama.cpp 在构建机器本地编译；自动后端按 Metal、OpenCL、CPU 顺序尝试。Apple 的 OpenCL 环境若未被 llama.cpp 识别为兼容设备，会跳过并继续回退。
+
 ## 使用
 
 - 图片 OCR：多选图片或添加文件夹，支持多页 TIFF。默认导出 UTF-8 文字。

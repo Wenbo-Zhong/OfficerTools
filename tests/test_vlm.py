@@ -48,7 +48,7 @@ class VlmTests(unittest.TestCase):
                 if self.backend=="vulkan":raise RuntimeError("no GPU")
             def transcribe(self,path,language):return "日本語"
             def close(self):self.closed=True
-        with patch.object(vlm,"model_files"),patch.object(vlm,"Session",FakeSession):
+        with patch.object(vlm,"model_files"),patch.object(vlm,"Session",FakeSession),patch.object(vlm,"backend_order",return_value=["vulkan","cpu"]):
             with vlm.Recognizer(self.job()) as recognizer:
                 self.assertEqual(recognizer.transcribe(self.root/"page.png","jpn"),"日本語")
                 self.assertEqual(recognizer.transcribe(self.root/"page2.png","jpn"),"日本語")
