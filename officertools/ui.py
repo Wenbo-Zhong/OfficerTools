@@ -453,7 +453,7 @@ class App(object):
         icon_slot.pack(side="left", fill="y")
         icon_slot.pack_propagate(False)
         search_icon = tk.Label(icon_slot, text="⌕", font=(self.family, 18), bg=CARD, fg=MUTED)
-        search_icon.place(relx=0.5, rely=0.5, anchor="center")
+        search_icon.place(relx=0.5, rely=0.5, anchor="center", y=-self.px(3))
         placeholder = "搜索工具"
         search_text = tk.StringVar(value=placeholder)
         entry = tk.Entry(search_wrap, textvariable=search_text, font=self.font, bg=CARD, fg=MUTED,
@@ -489,7 +489,7 @@ class App(object):
         clear_slot.pack_propagate(False)
         clear = tk.Label(clear_slot, text="×", font=(self.family, 18), bg=CARD, fg=MUTED,
                          cursor="hand2")
-        clear.place(relx=0.5, rely=0.5, anchor="center")
+        clear.place(relx=0.5, rely=0.5, anchor="center", y=-self.px(3))
         clear.bind("<Button-1>", lambda _event: (search_text.set(""), entry.focus_set()))
         clear.bind("<Enter>", lambda _event: clear.configure(fg=INK))
         clear.bind("<Leave>", lambda _event: clear.configure(fg=MUTED))
