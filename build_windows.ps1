@@ -1,12 +1,12 @@
 # One shared runtime, tiny native executables for individual tools.
-# Build the Windows 7 package with Python 3.8. Python 3.9 and later do not run on Windows 7.
+# Build the 64-bit Windows 10+ package with Python 3.12.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
-$Python = Join-Path $PSScriptRoot ".toolchain\py38\python.exe"
+$Python = Join-Path $PSScriptRoot ".toolchain\py312\python.exe"
 if (-not (Test-Path $Python)) { $Python = "python" }
-& $Python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 8) else 1)"
+& $Python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"
 if ($LASTEXITCODE -ne 0) {
-    throw "Windows 7 needs this package built with Python 3.8. Install it to .toolchain\py38 and run again."
+    throw "The Windows release must be built with Python 3.12. Install it to .toolchain\py312 and run again."
 }
 & $Python -X utf8 -m pip install -r requirements.txt
 if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed. Build stopped." }

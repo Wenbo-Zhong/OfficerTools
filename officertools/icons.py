@@ -135,7 +135,7 @@ def render_icon(tool_id, category, size=52, dark=False):
         d.rounded_rectangle(box(coords), radius=radius * size * scale / 56,
                             fill=fill, outline=outline, width=max(1, round(2 * size * scale / 56)))
     def text(x, y, value, pixels, color):
-        # Pillow's bundled bitmap font is portable, including Windows 7 packages.
+        # Pillow's bundled bitmap font is portable across supported Windows versions.
         font = ImageFont.load_default()
         mask = Image.new("RGBA", (100, 20))
         ImageDraw.Draw(mask).text((1, 0), value, font=font, fill=color)
