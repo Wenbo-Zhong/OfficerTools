@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from officertools.engine.common import Job, Result, unique
+from officertools.engine.common import Job, Result, unique, checkpoint
 
 
 AUDIO_EXT = {".mp3", ".wav", ".flac", ".aac", ".m4a", ".ogg", ".wma"}
@@ -24,6 +24,7 @@ def _walk_files(root: Path):
     for dirpath, dirnames, filenames in os.walk(str(root)):
         dirnames[:] = [d for d in dirnames if d not in (".git", "__pycache__")]
         for name in filenames:
+            checkpoint()
             yield Path(dirpath) / name
 
 
@@ -31,6 +32,7 @@ def _hash(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            checkpoint()
             h.update(chunk)
     return h.hexdigest()
 
@@ -119,13 +121,37 @@ def rename(job: Job) -> Result:
     now = datetime.now().strftime("%Y%m%d")
     lines = []
     outputs = []
+    plan = []
     for n, path in enumerate(job.files(), 1):
-        name = pattern.format(n="{:03d}".format(n), name=path.stem, ext=path.suffix, date=now)
-        dest = unique(path.with_name(name))
-        path.rename(dest)
-        outputs.append(dest)
+        stat = path.stat()
+        name = pattern.format(n="{:03d}".format(n), name=path.stem, ext=path.suffix, date=now,
+                              size=stat.st_size, folder=path.parent.name, mtime=datetime.fromtimestamp(stat.st_mtime).strftime("%Y%m%d_%H%M%S"))
+        if not name or name in (".","..") or any(ch in name for ch in '<>:"/\\|?*'):
+            raise RuntimeError("名称包含无效字符：" + name)
+        dest = path.with_name(name)
+        if dest != path and dest.exists():
+            raise RuntimeError("目标文件已存在，请修改模板：" + str(dest))
+        if dest in [p[1] for p in plan]:
+            raise RuntimeError("模板生成了重复名称：" + name)
+        plan.append((path,dest))
         lines.append(path.name + " → " + dest.name)
-    return Result("已重命名：\n" + "\n".join(lines), outputs)
+    preview = job.opt("preview", "1") == "1"
+    if not preview:
+        changed=[]
+        try:
+            for path,dest in plan:
+                job.checkpoint()
+                if path != dest:
+                    path.rename(dest)
+                    changed.append((path,dest))
+                outputs.append(dest)
+        except Exception:
+            for path,dest in reversed(changed):
+                dest.rename(path)
+            raise
+    report=job.outdir/"rename-plan.txt"
+    report.write_text("\n".join(lines),encoding="utf-8")
+    return Result(("预览（未修改文件）：" if preview else "已重命名：") + "\n" + "\n".join(lines), [report]+outputs)
 
 
 def filetime(job: Job) -> Result:
@@ -135,8 +161,34 @@ def filetime(job: Job) -> Result:
         stamp = time.mktime(when.timetuple())
     else:
         stamp = time.time()
+    offset=job.number("offset",0)
     for path in job.files():
-        os.utime(str(path), (stamp, stamp))
+        job.checkpoint()
+        stat=path.stat()
+        access=stat.st_atime+offset if offset else stamp
+        modified=stat.st_mtime+offset if offset else stamp
+        os.utime(str(path), (access if job.opt("access","1")=="1" else stat.st_atime,
+                            modified if job.opt("modified","1")=="1" else stat.st_mtime))
+        if job.flag("created"):
+            if os.name != "nt":
+                raise RuntimeError("设置创建时间仅支持 Windows。")
+            import ctypes
+            from ctypes import wintypes
+            kernel=ctypes.WinDLL("kernel32",use_last_error=True)
+            kernel.CreateFileW.argtypes=[wintypes.LPCWSTR,wintypes.DWORD,wintypes.DWORD,ctypes.c_void_p,wintypes.DWORD,wintypes.DWORD,wintypes.HANDLE]
+            kernel.CreateFileW.restype=wintypes.HANDLE
+            kernel.SetFileTime.argtypes=[wintypes.HANDLE,ctypes.c_void_p,ctypes.c_void_p,ctypes.c_void_p]
+            kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+            handle=kernel.CreateFileW(str(path.resolve()),0x100,7,None,3,0,None)
+            if handle == wintypes.HANDLE(-1).value:
+                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                created=stat.st_ctime+offset if offset else stamp
+                value=ctypes.c_ulonglong(int((created+11644473600)*10000000))
+                if not kernel.SetFileTime(handle,ctypes.byref(value),None,None):
+                    raise ctypes.WinError(ctypes.get_last_error())
+            finally:
+                kernel.CloseHandle(handle)
     return Result("已修改 {} 个文件的时间。".format(len(job.files())))
 
 
@@ -163,7 +215,13 @@ def unzip_batch(job: Job) -> Result:
         dest = job.outdir / path.stem
         dest.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(str(path)) as zf:
-            zf.extractall(str(dest))
+            password=job.opt("password").encode("utf-8") or None
+            for member in zf.infolist():
+                job.checkpoint()
+                target=(dest/member.filename).resolve()
+                if dest.resolve() not in target.parents and target != dest.resolve():
+                    raise RuntimeError("压缩包包含超出目标文件夹的路径："+member.filename)
+                zf.extract(member,str(dest),pwd=password)
         outputs.append(dest)
     return Result("已解压 {} 个压缩包。".format(len(outputs)), outputs)
 
@@ -200,6 +258,7 @@ def checksum(job: Job) -> Result:
         sha = hashlib.sha256()
         with path.open("rb") as fh:
             for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                job.checkpoint()
                 md5.update(chunk)
                 sha.update(chunk)
         lines.append(path.name)

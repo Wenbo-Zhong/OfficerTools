@@ -98,7 +98,7 @@ TOOLS: List[Tool] = [
     ), "PDF转图片"),
     Tool("pdf-to-text", "PDF 转文本", "PDF", "提取可选中文字。扫描件请用 OCR。", (F("file", "PDF 文件", "file"),), "PDF转文本"),
     Tool("pdf-to-html", "PDF 转 HTML", "PDF", "把文本按页写成 HTML。", (F("file", "PDF 文件", "file"),), "PDF转HTML"),
-    Tool("pdf-to-word", "PDF 转 Word", "PDF", "生成可编辑的 DOCX（按文本段落）。复杂版式请另外安装 LibreOffice 后再用办公转换。", (
+    Tool("pdf-to-word", "PDF 转 Word", "PDF", "提取 PDF 文字并按段落生成 DOCX，不保留原始版式。扫描件请先进行 OCR 识别。", (
         F("file", "PDF 文件", "file"),
     ), "PDF转Word"),
     Tool("pdf-info", "PDF 信息", "PDF", "查看页数、页面尺寸和元数据。", (F("file", "PDF 文件", "file"),), "PDF信息"),
@@ -226,11 +226,11 @@ TOOLS: List[Tool] = [
         F("files", "视频文件", "files"),
         F("fmt", "格式", "choice", "mp4", ("mp4", "mkv", "webm", "mov", "avi")),
     ), "视频转换"),
-    Tool("office-convert", "办公文档转换", "格式转换", "有 LibreOffice 时做版式转换；否则把 DOCX/XLSX/PPTX 抽成文本。", (
+    Tool("office-convert", "办公文档转换", "格式转换", "使用本机文档转换组件转换格式；未检测到组件时，可提取文字生成文档。", (
         F("files", "文档", "files"),
         F("fmt", "目标", "choice", "pdf", ("pdf", "txt", "html", "docx")),
     ), "办公文档转换"),
-    Tool("office-to-image", "文档转图片", "格式转换", "用 LibreOffice 转成 PDF 后再导出 PNG。", (
+    Tool("office-to-image", "文档转图片", "格式转换", "先将文档转成 PDF，再导出 PNG 图片。需要本机文档转换组件。", (
         F("files", "文档", "files"),
         F("dpi", "分辨率", "choice", "150", ("72", "150", "200", "300")),
     ), "文档转图片"),
@@ -298,6 +298,93 @@ TOOLS: List[Tool] = [
     Tool("image-viewer", "图片查看", "阅读", "按原始像素查看图片，可放大到 100% 以上。", (
         F("file", "图片", "file"),
     ), "图片查看"),
+]
+
+# Shared options keep the form and command-line parameter names in one place.
+_extra = {
+    "ocr-pdf": (F("password","PDF 打开密码，可空","text"),F("ranges","识别页码范围，留空全部","text")),
+    "ocr-screen": (F("bbox","识别区域：左,上,宽,高；留空全屏","text"),),
+    "office-convert": (F("component","文档转换程序，可空以自动检测","file"),),
+    "office-to-image": (F("component","文档转换程序，可空以自动检测","file"),),
+    "dicom-preview": (F("window-width","窗宽，0 使用文件设置或自动范围","number","0"),F("window-center","窗位（指定窗宽时生效）","number","0")),
+    "pdf-optimize": (F("preset","压缩级别","choice","ebook",("screen","ebook","printer","prepress","default")),F("dpi","图片目标分辨率","number","150")),
+    "pdf-crop": (F("auto","自动检测并裁白边（忽略手动边距）","check","0"),F("padding","自动裁剪保留边距（点）","number","8")),
+    "pdf-nup": (F("margin","纸张外边距（点）","number","12"),F("gap","格子间距（点）","number","6"),F("paper","输出纸张","choice","original",("original","A4","A4-landscape","A3","A3-landscape"))),
+    "pdf-lock": (F("owner-password","权限管理密码，可空","text"),F("allow-print","允许打印","check","1"),F("allow-copy","允许复制文字与图片","check","1"),F("allow-modify","允许修改","check","1")),
+    "pdf-pagenum": (F("size","字号（点）","number","11"),F("color","颜色","text","#000000"),F("position","页码位置","choice","bottom-center",("bottom-center","bottom-left","bottom-right","top-center","top-left","top-right")),F("ranges","页码范围，可空","text")),
+    "pdf-images": (F("min-width","最小图片宽度（像素）","number","0"),F("min-height","最小图片高度（像素）","number","0"),F("fmt","输出格式","choice","original",("original","png","jpeg","tiff","bmp","webp"))),
+    "pdf-to-image": (F("ranges","页码范围，可空","text"),F("fmt","输出格式","choice","png",("png","jpeg","tiff","bmp","webp"))),
+    "screenshot": (F("bbox","截取区域：左,上,宽,高；留空为全屏","text"),),
+    "screen-record": (F("bbox","录制区域：左,上,宽,高；留空为全屏","text"),F("audio-device","声音设备名称，可空","text","",(),"使用 FFmpeg DirectShow 音频设备名；录系统声需系统提供混音/回环设备。")),
+    "gif-record": (F("bbox","录制区域：左,上,宽,高；留空为全屏","text"),),
+    "audio-convert": (F("bitrate","音频码率 kbps，0 自动","number","0"),F("sample-rate","采样率 Hz，0 自动","number","0"),F("channels","声道数，0 保持","choice","0",("0","1","2")),F("start","起始秒","number","0"),F("duration","截取秒数，0 至结尾","number","0")),
+    "video-convert": (F("width","输出宽度（偶数），0 保持","number","0"),F("fps","帧率，0 保持","number","0"),F("crf","画质 CRF，越小越清晰（0–51）","number","23"),F("start","起始秒","number","0"),F("duration","截取秒数，0 至结尾","number","0")),
+    "pdf-deskew": (F("max-angle", "最大倾斜角度（0.2–45°）", "number", "10"),
+        F("mode", "输出方式", "choice", "preserve", ("preserve", "raster"), "preserve：保留文字与矢量，页面尺寸不变；raster：重建扫描页，可配合裁白边。"),
+        F("trim", "裁去扫描页白边（重建扫描页）", "check", "0"), F("margin", "裁白边后保留像素", "number", "12"),
+        F("min-edge", "忽略短边小于此像素的页面", "number", "0"), F("quality", "重建扫描页 JPEG 质量", "number", "92")),
+    "pdf-bw": (F("bw-mode", "转换方式", "choice", "auto", ("auto", "threshold", "dither", "gray"), "auto：自动二值化；threshold：指定阈值；dither：抖动黑白；gray：灰度。"),
+        F("threshold", "黑白阈值（0–255）", "number", "160")),
+    "pdf-watermark": (F("image", "图片水印，留空用文字", "file"), F("width", "图片水印宽度（点）", "number", "180"),
+        F("angle", "旋转角度", "number", "0"), F("color", "文字颜色", "text", "#505050"),
+        F("position", "位置", "choice", "center", ("center","top-left","top-right","bottom-left","bottom-right")),
+        F("tile", "平铺水印", "check", "0"), F("parity", "页面奇偶", "choice", "all", ("all","odd","even"))),
+    "img-compress": (F("fmt", "输出格式", "choice", "auto", ("auto","jpeg","png","webp")),),
+    "pdf417": (F("columns", "数据列数（1–30）", "number", "6"), F("security", "纠错级别（0–8）", "number", "2")),
+    "barcode": (F("barcode-format", "条码类型", "choice", "code128", ("code128","code39","ean13","ean8","upca","isbn13","itf")),),
+    "slideshow": (F("interval", "自动切换间隔（秒）", "number", "4"), F("music", "背景音乐，可空", "file")),
+    "rename": (F("preview", "只预览，不修改文件", "check", "1"),),
+    "filetime": (F("offset", "在原时间上偏移秒数，0 表示设置时间", "number", "0"),
+        F("access", "修改访问时间", "check", "1"), F("modified", "修改最后修改时间", "check", "1"), F("created", "修改创建时间（Windows）", "check", "0")),
+    "unzip-batch": (F("password", "解压密码，可空", "text"),),
+}
+_summaries = {
+    "ocr-image": "离线识别图片或多页 TIFF。优先使用已安装的语言包，缺少时自动改用 Qwen 多语言识别。",
+    "ocr-pdf": "离线识别扫描 PDF，支持密码和页码范围。缺少语言包时可用 Qwen 备用识别。",
+    "ocr-screen": "框选屏幕区域后离线识别。支持 Tesseract 和 Qwen 多语言备用引擎。",
+    "dicom-preview": "批量转换未压缩 DICOM，支持多帧、灰度窗宽窗位、反色及 8 位 RGB。",
+    "screen-record": "录制全屏或指定区域，可选择音频设备。点击取消会停止并保留已录制内容。",
+    "screenshot": "截取全屏或自选区域，按真实像素保存。",
+    "pdf-deskew": "批量校正 PDF / TIFF 扫描页。支持密码、页码范围和裁白边，另存输出，保留原件。",
+    "pdf-bw": "批量将 PDF / TIFF 转为真正的黑白二值图、抖动黑白或灰度，保留未选中的页面。",
+    "pdf-watermark": "添加文字或图片水印，支持角度、位置、透明度、平铺与奇偶页。",
+    "pdf-to-word": "导出可编辑文字、字号与图片到 Word。复杂表格、分栏可能需要手动调整，扫描页不做 OCR。",
+    "pdf-to-html": "导出带有文字位置、字体与内嵌图片的 HTML 页面。",
+    "pdf-reader": "查看 PDF 实际页面，支持翻页、缩放、跳页和文字查找。",
+    "pdf-optimize": "选择图片分辨率和压缩级别，或仅压缩 PDF 内容流。",
+    "img-compress": "批量压缩 JPEG / PNG / WEBP，可保留透明通道并限制长边。",
+    "rename": "预览批量重命名，支持 {n} {name} {ext} {date} {size} {folder} {mtime}。",
+    "filetime": "分别设置创建、访问、修改时间，或按秒偏移原时间。",
+    "calc": "四则运算、乘方、百分数及 sin、cos、sqrt、log 等科学函数（角度采用弧度）。",
+}
+_updated = []
+for _tool in TOOLS:
+    _fields = list(_tool.fields) + list(_extra.get(_tool.id, ()))
+    if _tool.id.startswith("ocr-"):
+        _fields=[f._replace(label="识别语言",help="默认 chi_sim+eng；也可填日语、jpn、俄语、rus 等。填 auto 自动判断语言，将直接使用 Qwen。") if f.key=="lang" else f for f in _fields]
+        _fields += [F("engine","识别引擎","choice","auto",("auto","tesseract","qwen"),"auto：已安装的语言用 Tesseract，缺少语言包时用 Qwen；也可手动指定。"),
+                    F("backend","Qwen 运行方式","choice","auto",("auto","vulkan","cpu"),"auto：优先 Vulkan，失败后改用 CPU。Qwen 较慢且占用更多内存。"),
+                    F("psm","Tesseract 页面分割方式","choice","3",("3","4","6","7","11"),"3：自动版面；4：单栏；6：整块文字；7：单行；11：零散文字。"),
+                    F("output","输出格式","choice","both" if _tool.id=="ocr-pdf" else "text",("text","both","searchable","hocr","tsv"),"text：文字；both/searchable：另生成可搜索 PDF；hocr/tsv：文字位置与识别信息。")]
+        if _tool.id=="ocr-pdf": _fields=[f._replace(kind="files") if f.key=="file" else f for f in _fields]
+    if _tool.id in ("dicom-preview","png-to-ico"):
+        _fields=[f._replace(kind="files") if f.key=="file" else f for f in _fields]
+    if _tool.id == "screen-record":
+        _fields=[f._replace(label="录制秒数，0 表示手动停止") if f.key=="seconds" else f for f in _fields]
+    if _tool.id.startswith("pdf-") and _tool.id != "pdf-reader":
+        _fields = [f._replace(kind="files", label="输入文件（可多选，按列表顺序）") if f.key == "file" else f for f in _fields]
+        if not any(f.key == "password" for f in _fields):
+            _fields.append(F("password", "PDF 打开密码，可空", "text"))
+        if _tool.id in ("pdf-deskew","pdf-bw","pdf-watermark","pdf-to-word","pdf-to-html"):
+            _fields.append(F("ranges", "页码范围，留空处理全部", "text", "", (), "例如 1-3,5；PDF/TIFF 均从第 1 页计数。"))
+    _updated.append(_tool._replace(fields=tuple(_fields), summary=_summaries.get(_tool.id,_tool.summary)))
+TOOLS = _updated + [
+    Tool("pdf-page-master", "PDF 页面编排", "PDF", "按指定顺序重排、复制页面，并插入空白页。", (
+        F("file","PDF 文件","files"), F("order","页面顺序","text","",(),"例如 3,1-2,blank,4；blank 或 0 表示空白页，留空保持原顺序。"), F("password","打开密码，可空","text")), "PDF页面编排"),
+    Tool("pdf-page-cut", "PDF 单页切分", "PDF", "按行列把一张大页面切成多张小页面，保留文字和矢量。", (
+        F("file","PDF 文件","files"), F("rows","行数","number","2"), F("cols","列数","number","1"), F("ranges","页码范围，可空","text"), F("password","打开密码，可空","text")), "PDF单页切分"),
+    Tool("pdf-links", "PDF 添加链接", "PDF", "在指定页面区域添加可点击的网页链接。", (
+        F("file","PDF 文件","files"), F("url","链接地址","text","https://"), F("rect","区域：左,上,右,下（点）","text","36,36,250,90"), F("ranges","页码范围，可空","text"), F("password","打开密码，可空","text")), "PDF添加链接"),
 ]
 
 BY_ID: Dict[str, Tool] = {t.id: t for t in TOOLS}

@@ -1,0 +1,72 @@
+﻿id,工具,类别,差距,说明,原版证据,当前源码,源码行
+pdf-merge,PDF 合并,PDF,较大,可按选中顺序合并；缺原版的文件队列重排、书签策略、合并后密码/权限等设置。,reference/OfficeBox/data/resources/officebox/PDFMerge/English.lng,officertools/engine/pdf.py,65
+pdf-split,PDF 分割,PDF,较大,只按固定页数或页码区间拆分；原版有按书签层级拆分，当前没有。,reference/OfficeBox/data/resources/officebox/PDFSplit/english.lng,officertools/engine/pdf.py,76
+pdf-extract,PDF 提取页面,PDF,一般,按页码提取的基础能力已实现；没有缩略图选择、可视化页管理。,reference/OfficeBox/data/resources/officebox/PDFPageMaster/english.lng,officertools/engine/pdf.py,97
+pdf-delete,PDF 删除页面,PDF,较大,仅按页码删除；原版页面编辑还有拖拽排序、插入空白页和撤销，当前缺少对应整体编辑流程。,reference/OfficeBox/data/resources/officebox/PDFPageMaster/english.lng,officertools/engine/pdf.py,107
+pdf-rotate,PDF 旋转,PDF,一般,支持页码范围及 90/180/270 度；缺可视化选页、预览和撤销。,reference/OfficeBox/data/resources/officebox/PDFPageMaster/english.lng,officertools/engine/pdf.py,122
+pdf-crop,PDF 页面裁剪,PDF,较大,只有四边数值裁剪；原版支持鼠标画裁剪框、自动裁空白、设置内容边距。,reference/OfficeBox/data/resources/officebox/PDFPageCrop/english.lng,officertools/engine/pdf.py,136
+pdf-nup,PDF 多页合一,PDF,较大,只有行列数；缺纸张尺寸/方向、边距、旋转及多文档组合排版设置。,reference/OfficeBox/data/resources/officebox/PDFnPage/english.lng,officertools/engine/pdf.py,159
+pdf-pagenum,PDF 加页码,PDF,较大,仅起始编号和模板，固定底部；原版提供字体、颜色、位置、格式与应用范围。,reference/OfficeBox/data/resources/officebox/PDFNumberPro/english.lng,officertools/engine/pdf.py,342
+pdf-watermark,PDF 加水印,PDF,较大,仅固定样式的文字水印；原版支持文字/图片/PDF/形状、多水印、位置、旋转、平铺、页范围和方案导入导出。,reference/OfficeBox/data/resources/officebox/PDFWatermark/english.lng,officertools/engine/pdf.py,327
+pdf-unlock,PDF 解密,PDF,较大,只凭单个打开密码导出未加密副本；缺批量队列、密码库和权限管理流程。,reference/OfficeBox/data/resources/officebox/SecuritySet/english.lng,officertools/engine/pdf.py,389
+pdf-lock,PDF 加密,PDF,较大,仅设置打开密码；没有权限密码以及打印、复制、修改等权限选择。,reference/OfficeBox/data/resources/officebox/SecuritySet/english.lng,officertools/engine/pdf.py,375
+pdf-optimize,PDF 压缩,PDF,较大,仅固定 Ghostscript /ebook 预设或压缩内容流；原版还有纠偏、黑白、图像重采样及删除空白页等组合选项。,reference/OfficeBox/data/resources/officebox/PDFOptimizer/english.lng,officertools/engine/pdf.py,399
+pdf-bw,PDF 转黑白,PDF,严重,实际生成灰度页面再封装 PDF，没有真正黑白二值化；缺原版阈值、自动阈值、抖色、前后预览、仅处理图像及页范围。,reference/OfficeBox/data/resources/officebox/PDFBW/english.lng,officertools/engine/pdf.py,552
+pdf-deskew,PDF 纠偏,PDF,严重,单 PDF、固定 ±6° 搜索且步长 0.2°、全页光栅化；缺批量 PDF/TIFF、递归目录、密码、页范围、可调角度、质量、图像过滤、中线/文字纠偏、裁边和原版备份/另存设置。,reference/OfficeBox/data/resources/officebox/Deskew/english.lng,officertools/engine/pdf.py,560
+pdf-images,PDF 提取图片,PDF,较大,能提取内嵌图像；缺原版的目录导入、大小限制、可视化预览和多种输出图像格式选择。,reference/OfficeBox/data/resources/officebox/PdfExtractImg/english.lng,officertools/engine/pdf.py,525
+pdf-to-image,PDF 转图片,PDF,较大,单 PDF 逐页导出 PNG；缺批量队列、输出格式选择、页范围、命名和监控目录模式。,reference/OfficeBox/data/resources/officebox/pdftoimageconverter/English.lng,officertools/engine/pdf.py,546
+pdf-to-text,PDF 转文本,PDF,待实测,可提取已有文字层；原版未确认有完全对应的独立工具。不是 OCR，不应与扫描件识别混为一项。,reference/OfficeBox/万彩办公大师OfficeBox帮助.pdf,officertools/engine/pdf.py,421
+pdf-to-html,PDF 转 HTML,PDF,严重,把提取文字逐行写入 HTML 段落；不还原图像、表格、字体、位置，且缺批量及监控目录模式。原版排版效果仍需样本验证。,reference/OfficeBox/data/resources/officebox/pdftohtmlconverter/English.lng,officertools/engine/pdf.py,432
+pdf-to-word,PDF 转 Word,PDF,严重,提取文本并逐行写 DOCX，还会插入“第 n 页”段落；没有图片/表格/版式重建、批量及监控目录。原版转换质量未做同样样本实测。,reference/OfficeBox/data/resources/officebox/PDFtoWord/English.lng,officertools/engine/pdf.py,446
+pdf-info,PDF 信息,PDF,待实测,可查看基本元数据和页面信息；没有确认原版一一对应的独立组件。,reference/OfficeBox/万彩办公大师OfficeBox帮助.pdf,officertools/engine/pdf.py,489
+pdf-rename,PDF 批量重命名,PDF,较大,只支持 title/pages/name/n 模板；原版资源/示例包含更多宏和脚本规则，缺预览与规则编辑工作流。,reference/OfficeBox/data/resources/officebox/PDFRename/english.lng,officertools/engine/pdf.py,504
+img-to-pdf,图片转 PDF,PDF,较大,按图片像素和 DPI 合并；缺原版扫描仪导入、队列排序/图像编辑、纸张尺寸、方向、位置与权限设置。,reference/OfficeBox/data/resources/officebox/Image2PDF/english.lng,officertools/engine/images.py,332
+tiff-merge,TIFF 合并分割,PDF,一般,支持多页 TIFF 合并和整文件逐页拆分，固定 LZW 合并；原版还提供压缩选项，具体页操作差异需实测。,reference/OfficeBox/data/resources/officebox/tiffmergesplit/english.lng,officertools/engine/images.py,349
+chm-to-pdf,CHM 转 PDF,格式转换,严重,解包 HTML 后抽取文本再排版成图片 PDF；不能保留原始图文布局，普通非 XML HTML 还可能被 _strip_ns 丢弃。,reference/OfficeBox/data/resources/officebox/chmtopdfconverter/English.lng,officertools/engine/external.py,275
+img-convert,图片格式转换,图片,较大,有批量基本格式转换；缺原版监控目录、同流程尺寸/裁剪/方向等选项。,reference/OfficeBox/data/resources/officebox/imageconverter/English.lng,officertools/engine/images.py,42
+img-resize,图片改尺寸,图片,一般,基础像素/比例/宽高缩放已实现；缺预览、文件队列和统一批处理工作流。,reference/OfficeBox/data/resources/officebox/batchphotoresize/English.lng,officertools/engine/images.py,54
+img-compress,图片压缩,图片,较大,实际所有输入都统一另存 JPEG，仅有质量和长边限制；没有保留原格式/透明度或无损 PNG 路径。原版帮助宣称无损压缩、资源有监控目录模式，实际压缩率需样本验证。,reference/OfficeBox/data/resources/officebox/imagecompress/English.lng,officertools/engine/images.py,79
+img-crop,图片裁剪,图片,较大,只有边距/中心裁剪数值；原版可鼠标框选、旋转、查看并保存多个裁剪结果。,reference/OfficeBox/data/resources/officebox/imagecrop/English.lng,officertools/engine/images.py,93
+img-watermark,图片水印,图片,较大,只有固定风格文字水印；缺原版图片水印、编辑器、位置/尺寸/输出格式和方案管理。,reference/OfficeBox/data/resources/officebox/photomark/english.lng,officertools/engine/images.py,120
+img-splice,图片拼接,图片,一般,仅横/纵拼接和间距；原版具体高级能力尚未从资源确认，不能断言缺模板或拼图布局。,reference/OfficeBox/data/resources/officebox/imagesplice,officertools/engine/images.py,143
+img-stamp,图片时间戳,图片,一般,当前时间/指定文字和四角位置；缺原版的日期格式、字体及监控目录配置。原版 EXIF 时间来源需进一步核实。,reference/OfficeBox/data/resources/officebox/timetophoto/English.lng,officertools/engine/images.py,170
+img-exif,图片 EXIF,图片,一般,查看仅输出前 40 项，支持一键清除；缺可视化元数据浏览。原版是否支持编辑/GPS 等需实测。,reference/OfficeBox/data/resources/officebox/photoexif/English.lng,officertools/engine/images.py,197
+img-effect,图片效果,图片,较大,只有亮度/对比度/锐度/灰度四类处理；缺图像编辑预览和原版更完整的旋转等编辑操作。,reference/OfficeBox/data/resources/officebox/imagemodifier/Chinese.lng,officertools/engine/images.py,231
+png-to-ico,PNG 转图标,图片,一般,单 PNG 生成固定多尺寸 ICO；缺原版批量、尺寸选项和监控目录模式。,reference/OfficeBox/data/resources/officebox/pngtoicon/English.lng,officertools/engine/images.py,249
+slideshow,图片幻灯片,图片,较大,只是键盘翻图 HTML；原版有切换效果、定时/循环、音乐、工程保存、EXE/SCR 和视频输出。,reference/OfficeBox/data/resources/officebox/photoslideshow/chinese.lng,officertools/engine/images.py,258
+qrcode,二维码,图片,待实测,基础二维码可生成，纠错等级固定 M；原版高级自定义能力未完成核实，不能判为等效。,reference/OfficeBox/data/resources/officebox/qrcode,officertools/engine/images.py,288
+barcode,一维码,图片,待实测,只能生成 Code128；原版具体支持的码制列表尚未核实，其他码制差距暂不作已证实结论。,reference/OfficeBox/data/resources/officebox/barcode1d,officertools/engine/images.py,305
+pdf417,PDF417 码,图片,严重,当前安装的 python-barcode 不支持 PDF417，调用已复现直接报错；是有入口但当前不能正常使用。,reference/OfficeBox/data/resources/officebox/pdf417-barcode,officertools/engine/images.py,317
+pick-color,屏幕拾色,图片,严重,名称为屏幕拾色，但实现只打开图片取原像素颜色；当前没有实时屏幕取色。原版拾色完整模式待进一步实测。,reference/OfficeBox/data/resources/officebox/pickcolor,officertools/ui.py,
+dicom-preview,DICOM 转图片,格式转换,较大,单文件手写解析，仅未压缩 8/16 位单通道，16 位按 min/max 线性映射；无用户窗宽窗位/多帧选择，原版已声明批量。原版传输语法覆盖需样本实测。,reference/OfficeBox/data/resources/officebox/dicomconverter/English.lng,officertools/engine/images.py,375
+ocr-image,图片 OCR,识别,严重,只调用外部 Tesseract，发布包未内置引擎和语言包；原版离线包含中英文 traineddata，且有图片/扫描及文本编辑流程。,reference/OfficeBox/data/resources/officebox/image_ocr/Chinese.lng,officertools/engine/external.py,247
+ocr-pdf,PDF OCR,识别,严重,单 PDF 全页光栅化后输出文本；引擎/语言包未内置，缺批量、页范围和区域交互；不支持生成带文字层的可搜索 PDF。原版可搜索 PDF 输出需另行确认。,reference/OfficeBox/data/resources/officebox/pdf_ocr/Chinese.lng,officertools/engine/external.py,263
+ocr-screen,屏幕 OCR,识别,严重,全屏截图后 OCR；缺原版区域框选、全局热键，且依赖未内置的 OCR 引擎和语言包。,reference/OfficeBox/data/resources/officebox/screen_ocr/Chinese.lng,officertools/engine/external.py,269
+screenshot,截屏,录屏截屏,严重,只截全部屏幕并存 PNG；原版帮助明确有自定义区域及编辑配合，当前没有区域/窗口选择和编辑工作流。,reference/OfficeBox/data/resources/officebox/screencapture,officertools/engine/external.py,108
+screen-record,屏幕录像,录屏截屏,严重,只能按秒数录全屏，没有区域/窗口、暂停/继续等交互；录制命令没有音频输入，简介中的系统声音没有落实。,reference/OfficeBox/data/resources/officebox/screenshotmaster/Chinese.lng,officertools/engine/external.py,68
+gif-record,GIF 录制,录屏截屏,严重,固定全屏、秒数和帧率直接导出 GIF；缺区域选择和录制交互。原版 GIF 编辑细节需进一步实测。,reference/OfficeBox/data/resources/officebox/screenshotmaster/Chinese.lng,officertools/engine/external.py,77
+voice-record,录音,录屏截屏,待实测,仅录制秒数，Windows 取枚举到的第一个音频设备，不能由用户选设备/音质；原版独立工具的完整参数尚未核实。,reference/OfficeBox/data/resources/officebox/voicerecorder,officertools/engine/external.py,83
+annotate,截图标注,录屏截屏,严重,文案写线、矩形、文字，实际仅红色自由线条；没有矩形/文字/箭头、颜色、撤销或实时屏幕覆盖画笔。,reference/OfficeBox/data/resources/officebox/Pointofix,officertools/ui.py,
+magnifier,放大镜,录屏截屏,待实测,仅固定取样区域和 2/3/4 倍；原版模式、快捷键与缩放范围尚未实测。,reference/OfficeBox/data/resources/officebox/zoom,officertools/ui.py,
+audio-convert,音频转换,格式转换,较大,仅文件和目标格式；没有码率/采样率/声道设置。原版具体高级参数需实测，原版批量转换已由帮助文档确认。,reference/OfficeBox/data/resources/officebox/musicconverter/English.lng,officertools/engine/external.py,25
+video-convert,视频转换,格式转换,较大,仅目标扩展名并依赖默认编码参数；原版资源有宽高参数、批量队列、监控目录和转换进度/停止。,reference/OfficeBox/data/resources/officebox/videoconverter/English.lng,officertools/engine/external.py,36
+office-convert,办公文档转换,格式转换,严重,依赖未内置的办公转换组件；缺组件时的 DOCX/HTML 是纯文本替代，PDF 输出会报错，不能视作原版图文格式转换等效实现。,reference/OfficeBox/data/resources/officebox/officeconverter/English.lng,officertools/engine/external.py,179
+office-to-image,文档转图片,格式转换,严重,依赖未内置的办公转换组件，没有该组件就不能运行；缺原版批量转换队列、预览/输出配置等工作流。,reference/OfficeBox/data/resources/officebox/officetoimage/English.lng,officertools/engine/external.py,210
+office-to-text,文档转文本,格式转换,较大,只直接读取 DOCX/XLSX/PPTX/TXT 等；不支持旧 DOC/XLS/PPT，复杂表格和顺序没有版面恢复。原版资源范围需进一步实测。,reference/OfficeBox/data/resources/officebox/officetoText/English.lng,officertools/engine/external.py,165
+speech,文字转语音,格式转换,待实测,系统语音、语速和 WAV 输出；没有声音选择、试听和保存格式选项，原版声库/格式范围待实测。,reference/OfficeBox/data/resources/officebox/speach,officertools/engine/external.py,223
+dup-files,重复文件,文件,较大,只按 SHA256 输出文本报告；缺查重结果列表、筛选、勾选保留及后续处理界面。,reference/OfficeBox/data/resources/officebox/duplicatefilefinder/english.lng,officertools/engine/files.py,66
+dup-photos,重复图片,文件,较大,简单平均哈希与阈值，只输出文本；原版有相似度、比较预览、选择、移动和回收站处理。识别率差异未做基准测试。,reference/OfficeBox/data/resources/officebox/duplicatephotofinder/english.lng,officertools/engine/files.py,81
+dup-audio,重复音频,文件,待实测,只比较文件内容哈希，改标签或重编码后无法识别同音频；原版是否有音频指纹/标签匹配尚未核实。,reference/OfficeBox/data/resources/officebox/duplicatemusicfinder/english.lng,officertools/engine/files.py,70
+rename,批量重命名,文件,较大,只支持 n/name/ext/date 四类模板且直接重命名；缺原版预览和文件大小/文件夹/创建或修改时间等宏。,reference/OfficeBox/data/resources/officebox/filerename/english.lng,officertools/engine/files.py,117
+filetime,修改文件时间,文件,较大,同一时间同时写访问和修改时间，不能修改创建时间；原版可分别设置三类时间及相对偏移。,reference/OfficeBox/data/resources/officebox/filetimemodifier/English.lng,officertools/engine/files.py,131
+zip-batch,批量压缩,文件,较大,仅普通 ZIP，无密码选项/目录监控；原版有 ZIP 密码设置与监控模式，不能仅以支持 ZIP 视为等效。,reference/OfficeBox/data/resources/officebox/batchzip/English.lng,officertools/engine/files.py,143
+unzip-batch,批量解压,文件,一般,只解 ZIP 到同名目录，没有密码输入、监控目录和逐文件队列控制；原版其他格式支持未核实。,reference/OfficeBox/data/resources/officebox/banchunzip/English.lng,officertools/engine/files.py,160
+mkdir-batch,批量建文件夹,文件,一般,一行一个目录名的基础创建；原版高级编号/层级模板能力未完成核实。,reference/OfficeBox/data/resources/officebox/BatchFolderCreator/English.lng,officertools/engine/files.py,171
+autocopy,文件复制,文件,较大,逐文件 copy2，仅覆盖或自动改名；缺原版暂停和可视化复制队列，不能递归选目录或管理过程。,reference/OfficeBox/data/resources/officebox/autocopy/English.lng,officertools/engine/files.py,184
+checksum,文件校验,文件,待实测,MD5/SHA256 基础计算已实现；原版完全对应组件及算法/校验文件支持尚未核实。,reference/OfficeBox/万彩办公大师OfficeBox帮助.pdf,officertools/engine/files.py,196
+textdiff,文本比较,文件,待实测,当前只显示 unified diff 文本，没有双栏交互；原版的双栏/合并/编码选项未完成界面实测，不据组件名直接推断全部差距。,reference/OfficeBox/data/resources/officebox/TextDiff,officertools/engine/files.py,213
+calc,计算器,系统,较大,只有字符白名单下的 eval 表达式，无科学计算操作界面；50% 已复现 SyntaxError，百分数文案不符合当前语法。,reference/OfficeBox/data/resources/officebox/calc,officertools/engine/external.py,342
+shutdown,定时关机,系统,待实测,只有延迟分钟和动作；原版定时方式、任务管理等参数未完成实测。,reference/OfficeBox/data/resources/officebox/autoshutdown/English.lng,officertools/engine/external.py,353
+disk-bench,磁盘测速,系统,待实测,只测一个临时文件的顺序读写，读测可能受系统缓存影响；原版对应组件和测试方法未核实。,reference/OfficeBox/万彩办公大师OfficeBox帮助.pdf,officertools/engine/files.py,229
+pdf-reader,PDF 阅读,阅读,严重,实际调用 to_text，输出文本文件，不渲染页面；不是原版 PDF 阅读器的页面显示、缩放和导航能力。,reference/OfficeBox/data/resources/officebox/PDFReader,officertools/engine/pdf.py,573
+image-viewer,图片查看,阅读,待实测,已有缩放和图像画布；原版一一对应查看器及多帧/导航能力未确认。,reference/OfficeBox/万彩办公大师OfficeBox帮助.pdf,officertools/ui.py,

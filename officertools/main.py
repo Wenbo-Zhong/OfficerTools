@@ -20,6 +20,11 @@ def tool_from_exe():
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     baked = tool_from_exe()
+    if argv and argv[0] == "--tool-exe":
+        if len(argv) < 2 or argv[1] not in BY_EXE:
+            raise RuntimeError("未知的工具启动入口。")
+        baked = BY_EXE[argv[1]].id
+        del argv[:2]
     tool_id = ""
     if argv and not argv[0].startswith("-") and argv[0] in BY_ID:
         tool_id = argv.pop(0)

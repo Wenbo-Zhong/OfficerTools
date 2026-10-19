@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from officertools.engine import external, files, images, pdf
-from officertools.engine.common import Job, Result
+from officertools.engine import external, files, images, pdf, pdf_extended, dicom, ocr
+from officertools.engine.common import Job, Result, Cancelled, _current
 
 HANDLERS = {
     "pdf-merge": pdf.merge,
@@ -13,17 +13,20 @@ HANDLERS = {
     "pdf-crop": pdf.crop,
     "pdf-nup": pdf.nup,
     "pdf-pagenum": pdf.pagenum,
-    "pdf-watermark": pdf.watermark,
+    "pdf-watermark": pdf_extended.watermark,
     "pdf-unlock": pdf.unlock,
     "pdf-lock": pdf.lock,
     "pdf-optimize": pdf.optimize,
-    "pdf-bw": pdf.to_bw,
-    "pdf-deskew": pdf.deskew,
+    "pdf-bw": pdf_extended.scan_process,
+    "pdf-deskew": pdf_extended.scan_process,
+    "pdf-page-master": pdf_extended.page_master,
+    "pdf-page-cut": pdf_extended.page_cut,
+    "pdf-links": pdf_extended.add_links,
     "pdf-images": pdf.images_out,
     "pdf-to-image": pdf.to_images,
     "pdf-to-text": pdf.to_text,
-    "pdf-to-html": pdf.to_html,
-    "pdf-to-word": pdf.to_docx,
+    "pdf-to-html": pdf_extended.to_html,
+    "pdf-to-word": pdf_extended.to_docx,
     "pdf-info": pdf.info,
     "pdf-rename": pdf.rename,
     "img-to-pdf": images.images_to_pdf,
@@ -43,10 +46,10 @@ HANDLERS = {
     "qrcode": images.qrcode_tool,
     "barcode": images.barcode_tool,
     "pdf417": images.pdf417_tool,
-    "dicom-preview": images.dicom_preview,
-    "ocr-image": external.ocr_image,
-    "ocr-pdf": external.ocr_pdf,
-    "ocr-screen": external.ocr_screen,
+    "dicom-preview": dicom.convert,
+    "ocr-image": ocr.image,
+    "ocr-pdf": ocr.pdf,
+    "ocr-screen": ocr.screen,
     "screenshot": external.screenshot,
     "screen-record": external.screen_record,
     "gif-record": external.gif_record,
@@ -74,7 +77,7 @@ HANDLERS = {
     "pdf-reader": pdf.pdf_reader,
 }
 
-UI_ONLY = {"pick-color", "annotate", "magnifier", "image-viewer"}
+UI_ONLY = {"pick-color", "annotate", "magnifier", "image-viewer", "pdf-reader"}
 
 
 def run(job: Job) -> Result:
@@ -83,4 +86,28 @@ def run(job: Job) -> Result:
     handler = HANDLERS.get(job.tool)
     if handler is None:
         raise RuntimeError("没有这个工具：" + job.tool)
-    return handler(job)
+    previous = getattr(_current, "job", None)
+    _current.job = job
+    try:
+        job.checkpoint(0, "准备处理")
+        # Single-document operations can now accept a queue without changing CLI keys.
+        inputs = job.files("file") if job.opt("file") else []
+        if len(inputs) > 1 and (job.tool.startswith("pdf-") or job.tool in ("dicom-preview","png-to-ico","ocr-pdf")):
+            outputs, messages = [], []
+            for n, path in enumerate(inputs):
+                job.checkpoint(n * 100 / len(inputs), path.name)
+                opts = dict(job.opts, file=str(path))
+                child = Job(job.tool, opts, job.outdir / ("{:03d}_".format(n + 1) + path.stem), cancel=job.cancel)
+                _current.job = child
+                try:
+                    result = handler(child)
+                    outputs.extend(result.files)
+                    messages.append(path.name + "：" + result.message)
+                except Cancelled:
+                    raise
+                except Exception as exc:
+                    messages.append(path.name + "：失败，" + str(exc))
+            return Result("\n".join(messages), outputs)
+        return handler(job)
+    finally:
+        _current.job = previous

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "llama-b11669-bin-win-cpu-x64.zip",
+    "urls": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-win-cpu-x64.zip",
+    "digest": "37b3efcf962847ca869745fd4ccf7f5e7e8dacfeff9fa3523b4ca8cdc66d632b"
+  },
+  {
+    "name": "llama-b11669-bin-win-vulkan-x64.zip",
+    "urls": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-win-vulkan-x64.zip",
+    "digest": "2c07574e7bde71321cb785282b20cc821e951132149eeceeea32ddebdbf0598e"
+  },
+  {
+    "name": "llama-b11669-source.tar.gz",
+    "urls": "https://codeload.github.com/ggml-org/llama.cpp/tar.gz/refs/tags/b11669",
+    "digest": "e06ba4fa263e30fdb9f0e65f00a8965202ddaa0c51f548a67e1f9b2164d04efc"
+  },
+  {
+    "name": "Qwen3.5-2B-Q4_K_M.gguf",
+    "urls": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf",
+    "digest": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+  },
+  {
+    "name": "Qwen3.5-2B-mmproj-F16.gguf",
+    "urls": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/mmproj-F16.gguf",
+    "digest": "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+  },
+  {
+    "name": "Qwen3.5-LICENSE",
+    "urls": "https://huggingface.co/Qwen/Qwen3.5-2B/raw/main/LICENSE",
+    "digest": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+  }
+]

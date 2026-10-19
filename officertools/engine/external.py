@@ -26,9 +26,17 @@ def audio_convert(job: Job) -> Result:
     ffmpeg = _ffmpeg()
     fmt = job.opt("fmt") or "mp3"
     outputs = []
-    for path in job.files():
+    paths=job.files()
+    for n,path in enumerate(paths):
+        job.checkpoint(n*100/len(paths),path.name)
         dest = job.outdir / (safe_stem(path) + "." + fmt)
-        run_cmd([ffmpeg, "-y", "-i", str(path), str(dest)])
+        args=[ffmpeg,"-y","-i",str(path)]
+        if job.number("start",0)>0: args += ["-ss",job.opt("start")]
+        if job.number("duration",0)>0: args += ["-t",job.opt("duration")]
+        if job.number("bitrate",0)>0 and fmt not in ("wav","flac"): args += ["-b:a",job.opt("bitrate")+"k"]
+        if job.number("sample-rate",0)>0: args += ["-ar",job.opt("sample-rate")]
+        if job.number("channels",0)>0: args += ["-ac",job.opt("channels")]
+        run_cmd(args+[str(dest)])
         outputs.append(dest)
     return Result("已转换 {} 个音频。".format(len(outputs)), outputs)
 
@@ -37,9 +45,21 @@ def video_convert(job: Job) -> Result:
     ffmpeg = _ffmpeg()
     fmt = job.opt("fmt") or "mp4"
     outputs = []
-    for path in job.files():
+    paths=job.files()
+    for n,path in enumerate(paths):
+        job.checkpoint(n*100/len(paths),path.name)
         dest = job.outdir / (safe_stem(path) + "." + fmt)
-        run_cmd([ffmpeg, "-y", "-i", str(path), str(dest)])
+        args=[ffmpeg,"-y","-i",str(path)]
+        if job.number("start",0)>0: args += ["-ss",job.opt("start")]
+        if job.number("duration",0)>0: args += ["-t",job.opt("duration")]
+        width=int(job.number("width",0))
+        if width>0:
+            if width%2: raise RuntimeError("输出宽度需为偶数。")
+            args += ["-vf","scale={}:-2".format(width)]
+        if job.number("fps",0)>0: args += ["-r",job.opt("fps")]
+        if fmt in ("mp4","mkv","mov"):
+            args += ["-c:v","libx264","-crf",str(max(0,min(51,int(job.number("crf",23))))),"-pix_fmt","yuv420p"]
+        run_cmd(args+[str(dest)])
         outputs.append(dest)
     return Result("已转换 {} 个视频。".format(len(outputs)), outputs)
 
@@ -51,7 +71,13 @@ def _record_args(job: Job, gif: bool):
     dest = job.outdir / ("capture.gif" if gif else "capture.mp4")
     cmd = [ffmpeg, "-y"]
     if sys.platform == "win32":
-        cmd += ["-f", "gdigrab", "-framerate", str(fps), "-i", "desktop"]
+        cmd += ["-f", "gdigrab", "-framerate", str(fps)]
+        if job.opt("bbox"):
+            x,y,w,h=parse_bbox(job.opt("bbox"))
+            cmd += ["-offset_x",str(x),"-offset_y",str(y),"-video_size","{}x{}".format(w,h)]
+        cmd += ["-i", "desktop"]
+        if job.opt("audio-device") and not gif:
+            cmd += ["-f","dshow","-i","audio="+job.opt("audio-device")]
     elif sys.platform == "darwin":
         cmd += ["-f", "avfoundation", "-framerate", str(fps), "-i", "1:none"]
     else:
@@ -67,10 +93,23 @@ def _record_args(job: Job, gif: bool):
 
 def screen_record(job: Job) -> Result:
     cmd, dest, seconds = _record_args(job, False)
-    if seconds <= 0:
-        subprocess.Popen(cmd)
-        return Result("已启动 FFmpeg。关闭它的窗口即停止录像。输出：\n" + str(dest))
-    run_cmd(cmd)
+    # FFmpeg needs a normal 'q' to finalize MP4 when a user stops recording.
+    import tempfile
+    with tempfile.TemporaryFile() as log:
+        options={"creationflags":subprocess.CREATE_NO_WINDOW} if sys.platform=="win32" else {}
+        proc=subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=log,stderr=log,**options)
+        while True:
+            try:
+                code=proc.wait(timeout=.2)
+                break
+            except subprocess.TimeoutExpired:
+                if job.cancel.is_set():
+                    proc.communicate(input=b"q\n",timeout=15)
+                    code=proc.returncode
+                    break
+        if code:
+            log.seek(0)
+            raise RuntimeError(log.read().decode("utf-8",errors="replace")[-3000:])
     return Result("录像完成。", [dest])
 
 
@@ -105,11 +144,22 @@ def voice_record(job: Job) -> Result:
     return Result("已录音 {} 秒。".format(seconds), [dest])
 
 
+def parse_bbox(raw):
+    values=[int(v.strip()) for v in raw.split(",")]
+    if len(values)!=4 or values[2]<=0 or values[3]<=0:
+        raise RuntimeError("区域格式：左,上,宽,高；宽高需大于零。")
+    return values
+
+
 def screenshot(job: Job) -> Result:
     from PIL import ImageGrab
 
     try:
-        im = ImageGrab.grab(all_screens=True)
+        if job.opt("bbox"):
+            x,y,w,h=parse_bbox(job.opt("bbox"))
+            im=ImageGrab.grab(bbox=(x,y,x+w,y+h),all_screens=True)
+        else:
+            im = ImageGrab.grab(all_screens=True)
     except TypeError:
         im = ImageGrab.grab()
     dest = job.outdir / "screenshot.png"
@@ -172,13 +222,33 @@ def office_to_text(job: Job) -> Result:
     return Result("已提取文本。", outputs)
 
 
-def _soffice():
-    return find_tool(["soffice", "libreoffice"])
+def _soffice(job=None):
+    if job and job.opt("component"):
+        return str(job.file("component"))
+    found=find_tool(["soffice", "libreoffice"])
+    if found: return found
+    if sys.platform=="win32":
+        candidates=[]
+        for key in ("PROGRAMFILES","PROGRAMFILES(X86)","LOCALAPPDATA"):
+            base=os.environ.get(key)
+            if base:
+                for folder in ("LibreOffice","OpenOffice 4"):
+                    candidates.append(Path(base)/folder/"program/soffice.exe")
+        import winreg
+        for hive in (winreg.HKEY_CURRENT_USER,winreg.HKEY_LOCAL_MACHINE):
+            for view in (winreg.KEY_WOW64_64KEY,winreg.KEY_WOW64_32KEY):
+                try:
+                    with winreg.OpenKey(hive,r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\soffice.exe",0,winreg.KEY_READ|view) as key:
+                        candidates.append(Path(winreg.QueryValue(key,None).strip('"')))
+                except OSError:
+                    pass
+        return next((str(p) for p in candidates if p.is_file()),None)
+    return None
 
 
 def office_convert(job: Job) -> Result:
     fmt = job.opt("fmt") or "pdf"
-    soffice = _soffice()
+    soffice = _soffice(job)
     outputs = []
     if soffice and fmt in ("pdf", "docx", "html", "txt"):
         for path in job.files():
@@ -187,7 +257,7 @@ def office_convert(job: Job) -> Result:
             if dest.exists():
                 outputs.append(dest)
         if outputs:
-            return Result("已用 LibreOffice 转换。", outputs)
+            return Result("文档转换完成。", outputs)
     if fmt == "txt":
         return office_to_text(job)
     if fmt == "docx":
@@ -196,7 +266,7 @@ def office_convert(job: Job) -> Result:
             dest = job.outdir / (safe_stem(path) + ".docx")
             _write_docx(dest, text.splitlines())
             outputs.append(dest)
-        return Result("已按段落生成 DOCX。安装 LibreOffice 后可以做版式转换。", outputs)
+        return Result("已按段落生成 DOCX。当前使用文字提取模式，不保留原始版式。", outputs)
     if fmt == "html":
         for path in job.files():
             text = office_text_from(path)
@@ -204,13 +274,13 @@ def office_convert(job: Job) -> Result:
             dest.write_text("<meta charset='utf-8'><pre>{}</pre>".format(text.replace("&", "&amp;").replace("<", "&lt;")), encoding="utf-8")
             outputs.append(dest)
         return Result("已生成 HTML 文本。", outputs)
-    raise RuntimeError("转成 PDF 需要安装 LibreOffice，并保证 soffice 在 PATH 中。")
+    raise RuntimeError("未检测到可用的文档转换组件，无法转换为 PDF。请安装并配置文档转换组件后重试。")
 
 
 def office_to_image(job: Job) -> Result:
-    soffice = _soffice()
+    soffice = _soffice(job)
     if not soffice:
-        raise RuntimeError("文档转图片需要 LibreOffice。")
+        raise RuntimeError("未检测到可用的文档转换组件，无法将文档转为图片。请安装并配置文档转换组件后重试。")
     dpi = int(job.number("dpi", 150))
     outputs = []
     for path in job.files():
@@ -245,31 +315,18 @@ def speech(job: Job) -> Result:
 
 
 def ocr_image(job: Job) -> Result:
-    tesseract = find_tool(["tesseract"])
-    if not tesseract:
-        raise RuntimeError("需要安装 Tesseract，并把 tesseract 加入 PATH。中文请同时安装 chi_sim 语言包。")
-    lang = job.opt("lang") or "chi_sim+eng"
-    parts = []
-    for path in job.files():
-        outbase = job.outdir / safe_stem(path)
-        run_cmd([tesseract, str(path), str(outbase), "-l", lang])
-        text = Path(str(outbase) + ".txt").read_text(encoding="utf-8", errors="replace")
-        parts.append("===== {}\n{}".format(path.name, text))
-    dest = job.outdir / "ocr.txt"
-    dest.write_text("\n\n".join(parts), encoding="utf-8")
-    return Result("\n\n".join(parts)[:8000], [dest])
+    from .ocr import image
+    return image(job)
 
 
 def ocr_pdf(job: Job) -> Result:
-    images = render_pdf(job.file(), job.outdir / "pages", int(job.number("dpi", 300)))
-    job.opts["files"] = "|".join(str(p) for p in images)
-    return ocr_image(job)
+    from .ocr import pdf
+    return pdf(job)
 
 
 def ocr_screen(job: Job) -> Result:
-    shot = screenshot(job)
-    job.opts["files"] = str(shot.files[0])
-    return ocr_image(job)
+    from .ocr import screen
+    return screen(job)
 
 
 def chm_to_pdf(job: Job) -> Result:
@@ -340,13 +397,37 @@ def chm_to_pdf(job: Job) -> Result:
 
 
 def calc(job: Job) -> Result:
+    import ast
+    import math
+    import operator
+    import re
     expr = job.opt("expr")
     if not expr:
         raise RuntimeError("请输入表达式。")
-    allowed = set("0123456789+-*/().% ")
-    if any(ch not in allowed for ch in expr):
-        raise RuntimeError("只允许数字和 + - * / % ( )。")
-    value = eval(expr, {"__builtins__": {}}, {})  # noqa: S307 — charset checked above
+    source = re.sub(r"(\d+(?:\.\d+)?)\s*%", r"(\1/100)", expr).replace("^", "**")
+    operators={ast.Add:operator.add,ast.Sub:operator.sub,ast.Mult:operator.mul,ast.Div:operator.truediv,ast.Pow:operator.pow,ast.Mod:operator.mod}
+    functions={name:getattr(math,name) for name in ("sin","cos","tan","asin","acos","atan","sqrt","log","log10","exp","floor","ceil","fabs")}
+    functions.update(abs=abs,round=round)
+    def evaluate(node):
+        if isinstance(node,ast.Expression):
+            return evaluate(node.body)
+        if isinstance(node,ast.Constant) and type(node.value) in (int,float):
+            return node.value
+        if isinstance(node,ast.Name) and node.id in ("pi","e","tau"):
+            return getattr(math,node.id)
+        if isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.UAdd,ast.USub)):
+            return evaluate(node.operand)*(1 if isinstance(node.op,ast.UAdd) else -1)
+        if isinstance(node,ast.BinOp) and type(node.op) in operators:
+            a,b=evaluate(node.left),evaluate(node.right)
+            if isinstance(node.op,ast.Pow) and (abs(b)>1000 or abs(a)>1e100):
+                raise RuntimeError("乘方数值过大。")
+            return operators[type(node.op)](a,b)
+        if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id in functions and not node.keywords:
+            return functions[node.func.id](*[evaluate(arg) for arg in node.args])
+        raise RuntimeError("不支持的表达式，请使用数字、运算符或科学函数。")
+    if len(source)>1000:
+        raise RuntimeError("表达式过长。")
+    value = evaluate(ast.parse(source,mode="eval"))
     return Result("{} = {}".format(expr, value))
 
 

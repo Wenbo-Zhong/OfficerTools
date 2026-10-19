@@ -141,16 +141,39 @@ def crop(job: Job) -> Result:
     bottom = job.number("bottom", 0)
     left = job.number("left", 0)
     writer = PdfWriter()
+    auto_doc = None
+    if job.flag("auto"):
+        from officertools.engine.pdf_extended import open_pdf
+        auto_doc = open_pdf(job)
     for i, page in enumerate(reader.pages):
         if i in chosen:
+            if auto_doc:
+                page.transfer_rotation_to_content()
             box = page.mediabox
-            page.mediabox = RectangleObject((
+            values = (
                 float(box.left) + left,
                 float(box.bottom) + bottom,
                 float(box.right) - right,
                 float(box.top) - top,
-            ))
+            )
+            if auto_doc:
+                from officertools.engine.pdf_extended import page_image
+                image=page_image(auto_doc[i],144).convert("L")
+                ink=image.point(lambda p:255 if p<245 else 0).getbbox()
+                if ink:
+                    margin=max(0,job.number("padding",8))
+                    x0,y0,x1,y1=ink
+                    values=(max(float(box.left),float(box.left)+x0/2-margin),max(float(box.bottom),float(box.top)-y1/2-margin),
+                            min(float(box.right),float(box.left)+x1/2+margin),min(float(box.top),float(box.top)-y0/2+margin))
+                else:
+                    values=tuple(float(v) for v in box)
+            if values[2]<=values[0] or values[3]<=values[1]:
+                raise RuntimeError("裁剪边距过大，页面区域无效。")
+            page.mediabox = RectangleObject(values)
+            page.cropbox = RectangleObject(values)
         writer.add_page(page)
+    if auto_doc:
+        auto_doc.close()
     dest = job.outdir / (safe_stem(path) + "_cropped.pdf")
     _write(writer, dest)
     return Result("已裁剪页面。", [dest])
@@ -169,18 +192,26 @@ def nup(job: Job) -> Result:
         base = chunk[0]
         width = float(base.mediabox.width)
         height = float(base.mediabox.height)
+        paper=job.opt("paper","original")
+        if paper.startswith("A4"): width,height=595.28,841.89
+        if paper.startswith("A3"): width,height=841.89,1190.55
+        if paper.endswith("landscape"): width,height=height,width
+        margin=max(0,job.number("margin",0))
+        gap=max(0,job.number("gap",0))
         canvas = writer.add_blank_page(width=width, height=height)
-        cell_w = width / cols
-        cell_h = height / rows
+        cell_w = (width-2*margin-(cols-1)*gap) / cols
+        cell_h = (height-2*margin-(rows-1)*gap) / rows
+        if min(cell_w,cell_h)<=0: raise RuntimeError("边距或间距过大。")
         for n, page in enumerate(chunk):
+            page.transfer_rotation_to_content()
             col = n % cols
             row = n // cols
             pw = float(page.mediabox.width) or 1
             ph = float(page.mediabox.height) or 1
             scale = min(cell_w / pw, cell_h / ph)
-            x = col * cell_w + (cell_w - pw * scale) / 2
-            y = height - (row + 1) * cell_h + (cell_h - ph * scale) / 2
-            canvas.merge_transformed_page(page, Transformation().scale(scale, scale).translate(x, y))
+            x = margin+col*(cell_w+gap)+(cell_w-pw*scale)/2
+            y = height-margin-row*(cell_h+gap)-cell_h+(cell_h-ph*scale)/2
+            canvas.merge_transformed_page(page, Transformation().translate(-float(page.mediabox.left),-float(page.mediabox.bottom)).scale(scale, scale).translate(x, y))
     dest = job.outdir / (safe_stem(path) + "_nup.pdf")
     _write(writer, dest)
     return Result("已按 {}×{} 排版。".format(cols, rows), [dest])
@@ -346,13 +377,36 @@ def pagenum(job: Job) -> Result:
     fmt = job.opt("fmt") or "{n} / {total}"
     total = len(reader.pages)
     writer = PdfWriter()
+    chosen=set(parse_ranges(job.opt("ranges"),total))
     for i, page in enumerate(reader.pages):
         label = fmt.replace("{n}", str(start + i)).replace("{total}", str(total))
-        _stamp_bottom(page, label)
+        if i in chosen:
+            _stamp_number(page,label,job)
         writer.add_page(page)
     dest = job.outdir / (safe_stem(path) + "_pagenum.pdf")
     _write(writer, dest)
     return Result("已加上页码。", [dest])
+
+
+def _stamp_number(page,text,job):
+    from reportlab.pdfgen.canvas import Canvas
+    from reportlab.lib.utils import ImageReader
+    from PIL import Image, ImageDraw
+    size=max(6,min(200,int(job.number("size",11))))
+    font=_cjk_font(size*3)
+    box=font.getbbox(text)
+    image=Image.new("RGBA",(max(1,box[2]-box[0]+6),max(1,box[3]-box[1]+6)))
+    ImageDraw.Draw(image).text((3-box[0],3-box[1]),text,font=font,fill=job.opt("color","#000000"))
+    w,h=float(page.mediabox.width),float(page.mediabox.height)
+    iw,ih=image.width/3,image.height/3
+    position=job.opt("position","bottom-center")
+    x=24 if "left" in position else w-24-iw if "right" in position else (w-iw)/2
+    y=h-24-ih if "top" in position else 24
+    blob=io.BytesIO();image.save(blob,"PNG");blob.seek(0)
+    stamp=io.BytesIO();canvas=Canvas(stamp,pagesize=(w,h))
+    canvas.drawImage(ImageReader(blob),x,y,width=iw,height=ih,mask="auto")
+    canvas.save();stamp.seek(0)
+    page.merge_page(PdfReader(stamp).pages[0])
 
 
 def _stamp_bottom(page, text):
@@ -380,7 +434,12 @@ def lock(job: Job) -> Result:
     reader = _reader(path)
     writer = PdfWriter()
     writer.append(reader)
-    writer.encrypt(password)
+    from pypdf.constants import UserAccessPermissions as Permissions
+    permissions=Permissions(-1)
+    if job.opt("allow-print","1")!="1": permissions &= ~(Permissions.PRINT | Permissions.PRINT_TO_REPRESENTATION)
+    if job.opt("allow-copy","1")!="1": permissions &= ~Permissions.EXTRACT
+    if job.opt("allow-modify","1")!="1": permissions &= ~(Permissions.MODIFY | Permissions.ADD_OR_MODIFY | Permissions.FILL_FORM_FIELDS | Permissions.ASSEMBLE_DOC)
+    writer.encrypt(password,owner_password=job.opt("owner-password") or password,permissions_flag=permissions)
     dest = job.outdir / (safe_stem(path) + "_locked.pdf")
     _write(writer, dest)
     return Result("已加密。", [dest])
@@ -404,10 +463,13 @@ def optimize(job: Job) -> Result:
             dest = job.outdir / (safe_stem(path) + "_optimized.pdf")
             run_cmd([
                 gs, "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
-                "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
+                "-dPDFSETTINGS=/"+job.opt("preset","ebook"), "-dNOPAUSE", "-dQUIET", "-dBATCH",
+                "-dDownsampleColorImages=true", "-dColorImageResolution="+str(int(job.number("dpi",150))),
+                "-dDownsampleGrayImages=true", "-dGrayImageResolution="+str(int(job.number("dpi",150))),
+                "-sPDFPassword="+job.opt("password"),
                 "-sOutputFile=" + str(dest), str(path),
             ])
-            return Result("已用 Ghostscript 压缩。", [dest])
+            return Result("已压缩 PDF。", [dest])
     reader = _reader(path, job.opt("password"))
     writer = PdfWriter()
     for page in reader.pages:
@@ -530,12 +592,19 @@ def images_out(job: Job) -> Result:
     for page_no, page in enumerate(reader.pages, 1):
         images = getattr(page, "images", None) or []
         for image in images:
+            if image.image.width < job.number("min-width",0) or image.image.height < job.number("min-height",0):
+                continue
             data = image.data
             ext = (image.name.split(".")[-1] or "bin").lower()
             if ext not in ("png", "jpg", "jpeg", "jp2", "tif", "tiff", "gif", "bmp"):
                 ext = "png"
             dest = job.outdir / "p{:03d}_{:03d}.{}".format(page_no, index, ext)
-            dest.write_bytes(data)
+            fmt=job.opt("fmt","original")
+            if fmt=="original":
+                dest.write_bytes(data)
+            else:
+                dest=dest.with_suffix(".jpg" if fmt=="jpeg" else "."+fmt)
+                image.image.convert("RGB").save(dest,format=fmt.upper())
             outputs.append(dest)
             index += 1
     if not outputs:
@@ -544,8 +613,19 @@ def images_out(job: Job) -> Result:
 
 
 def to_images(job: Job) -> Result:
+    from officertools.engine.pdf_extended import open_pdf, page_image
     dpi = int(job.number("dpi", 200))
-    outputs = render_pdf(job.file(), job.outdir, dpi)
+    if dpi<36 or dpi>1200: raise RuntimeError("分辨率应在 36 到 1200 DPI 之间。")
+    outputs=[]
+    fmt=job.opt("fmt","png")
+    with open_pdf(job) as doc:
+        indexes=parse_ranges(job.opt("ranges"),len(doc))
+        for k,n in enumerate(indexes):
+            job.checkpoint(k*100/len(indexes),"第 {} 页".format(n+1))
+            image=page_image(doc[n],dpi)
+            dest=job.outdir/(safe_stem(job.file())+"-{:03d}.{}".format(n+1,"jpg" if fmt=="jpeg" else fmt))
+            image.save(dest,dpi=(dpi,dpi))
+            outputs.append(dest)
     return Result("已按 {} DPI 导出 {} 页。".format(dpi, len(outputs)), outputs)
 
 

@@ -4,16 +4,46 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional
+from officertools.paths import application_root
+
+
+class Cancelled(RuntimeError):
+    pass
+
+
+_current = threading.local()
+
+
+def checkpoint():
+    job=getattr(_current,"job",None)
+    if job: job.checkpoint()
+
+
+class InputPaths(list):
+    def __iter__(self):
+        for item in super().__iter__():
+            checkpoint()
+            yield item
 
 
 class Job(object):
-    def __init__(self, tool, opts, outdir):
+    def __init__(self, tool, opts, outdir, progress=None, cancel=None):
         self.tool = tool
         self.opts = opts  # type: Dict[str, str]
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
+        self.progress = progress or (lambda value, message: None)
+        self.cancel = cancel or threading.Event()
+
+    def checkpoint(self, value=None, message=""):
+        if self.cancel.is_set():
+            raise Cancelled("任务已取消，已完成的输出会保留。")
+        if value is not None:
+            self.progress(value, message)
 
     def opt(self, key, default=""):
         return (self.opts.get(key) or default).strip()
@@ -24,7 +54,7 @@ class Job(object):
         missing = [str(p) for p in paths if not p.is_file()]
         if missing:
             raise RuntimeError("找不到文件：\n" + "\n".join(missing))
-        return paths
+        return InputPaths(paths)
 
     def file(self, key="file"):
         paths = self.files(key)
@@ -62,20 +92,54 @@ def which(name: str) -> Optional[str]:
 
 
 def run_cmd(args: List[str], cwd: Optional[str] = None) -> str:
-    proc = subprocess.run(
+    options = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+    program = Path(args[0]).resolve()
+    if program.parent.name == "bin" and program.parent.parent.name == "Library" and program.parent.parent.parent.name == "vendor":
+        vendor = program.parent.parent.parent
+        env = os.environ.copy()
+        env["FONTCONFIG_PATH"] = str(vendor / "Library/etc/fonts")
+        env["FONTCONFIG_FILE"] = str(vendor / "Library/etc/fonts/fonts.conf")
+        env["POPPLER_DATADIR"] = str(vendor / "share/poppler")
+        options["env"] = env
+    job = getattr(_current, "job", None)
+    if job:
+        job.checkpoint()
+    proc = subprocess.Popen(
         args,
         cwd=cwd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
-        check=False,
+        encoding="utf-8",
+        errors="replace",
+        **options,
     )
+    while True:
+        try:
+            output, _ = proc.communicate(timeout=0.2)
+            break
+        except subprocess.TimeoutExpired:
+            if job and job.cancel.is_set():
+                proc.terminate()
+                try:
+                    proc.communicate(timeout=3)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.communicate()
+                job.checkpoint()
     if proc.returncode != 0:
-        raise RuntimeError((proc.stdout or "命令失败")[-4000:])
-    return proc.stdout or ""
+        raise RuntimeError((output or "命令失败")[-4000:])
+    return output or ""
 
 
 def find_tool(names) -> Optional[str]:
+    root = application_root()
+    for name in names:
+        for directory in (root / "vendor/Library/bin", root / "vendor/ghostscript/bin", root / "vendor/tesseract/bin"):
+            filename = name + ".exe" if sys.platform == "win32" and not name.endswith(".exe") else name
+            candidate = directory / filename
+            if candidate.is_file():
+                return str(candidate)
     for name in names:
         found = which(name)
         if found:

@@ -1,4 +1,4 @@
-# One shared runtime, one exe per tool. Double-click a tool exe to open that tool.
+# One shared runtime, tiny native executables for individual tools.
 # Build the Windows 7 package with Python 3.8. Python 3.9 and later do not run on Windows 7.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -8,14 +8,58 @@ if (-not (Test-Path $Python)) { $Python = "python" }
 if ($LASTEXITCODE -ne 0) {
     throw "Windows 7 needs this package built with Python 3.8. Install it to .toolchain\py38 and run again."
 }
-& $Python -m pip install -r requirements.txt
-if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-& $Python -m PyInstaller --noconfirm --clean packaging\windows\officertools.spec
-& $Python -c "import shutil; from pathlib import Path; from officertools.catalog import TOOLS; root=Path('dist')/'OfficerTools'; base=Path('dist')/'办公工具箱.exe'; root.mkdir(parents=True, exist_ok=True); shutil.copy2(str(base), str(root/'办公工具箱.exe')); base=root/'办公工具箱.exe';
+& $Python -X utf8 -m pip install -r requirements.txt
+if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed. Build stopped." }
+& $Python -X utf8 -m pip install 'PyYAML>=6,<7'
+if ($LASTEXITCODE -ne 0) { throw "Build dependency installation failed." }
+& $Python -X utf8 packaging\windows\prepare_vendor.py
+if ($LASTEXITCODE -ne 0) { throw "Vendor binaries or matching sources are incomplete. Build stopped." }
+& $Python -X utf8 packaging\windows\prepare_ocr.py
+if ($LASTEXITCODE -ne 0) { throw "OCR runtime, models or source materials are incomplete." }
+& $Python -X utf8 packaging\windows\prepare_llama.py
+if ($LASTEXITCODE -ne 0) { throw "Local Qwen model or llama.cpp runtimes are incomplete." }
+& $Python -X utf8 packaging\windows\prepare_python_sources.py
+if ($LASTEXITCODE -ne 0) { throw "Python component sources are incomplete. Build stopped." }
+$compiler = Get-Command gcc -ErrorAction SilentlyContinue
+if (-not $compiler) { throw "MinGW-w64 gcc is required to build the small native tool launchers." }
+$launcherOutput = Join-Path $PSScriptRoot '.toolchain\tool-launcher.exe'
+& $compiler.Source -mwindows -Os -s -nostdlib -ffreestanding -fno-builtin '-Wl,-e,launcher_start' -finput-charset=UTF-8 packaging\windows\tool_launcher.c -o $launcherOutput -lkernel32 -luser32
+if ($LASTEXITCODE -ne 0) { throw "Native tool launcher build failed." }
+$distRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'dist'))
+$buildRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'build'))
+if ($distRoot -ne (Join-Path $PSScriptRoot 'dist') -or $buildRoot -ne (Join-Path $PSScriptRoot 'build')) {
+    throw "Unexpected build output paths"
+}
+if (Test-Path -LiteralPath $distRoot) {
+    # A running app or Explorer can hold its working directory open. Clear files
+    # first, retaining any empty directories Windows will not release yet.
+    Get-ChildItem -LiteralPath $distRoot -Recurse -File -Force | ForEach-Object {
+        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+    }
+    Get-ChildItem -LiteralPath $distRoot -Recurse -Directory -Force |
+        Sort-Object { $_.FullName.Length } -Descending | ForEach-Object {
+            if (-not (Get-ChildItem -LiteralPath $_.FullName -Force | Select-Object -First 1)) {
+                try { Remove-Item -LiteralPath $_.FullName -ErrorAction Stop } catch { }
+            }
+        }
+}
+if (Test-Path -LiteralPath $buildRoot) { Remove-Item -LiteralPath $buildRoot -Recurse -Force }
+$releaseOutput = Join-Path $distRoot 'OfficerTools-release'
+New-Item -ItemType Directory -Path $releaseOutput -Force | Out-Null
+& $Python -m PyInstaller --noconfirm --clean --distpath $releaseOutput packaging\windows\officertools.spec
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed. Build stopped." }
+& $Python -c "import shutil,sys; from pathlib import Path; from officertools.catalog import TOOLS; output=Path(sys.argv[1]); root=output/'OfficerTools'; main='\u529e\u516c\u5de5\u5177\u7bb1.exe'; base=output/main; root.mkdir(parents=True, exist_ok=True); shutil.copy2(str(base), str(root/main)); base=Path(sys.argv[2]);
 assert base.is_file(), base
 copied=[]
 for tool in TOOLS:
-    dest=root/(tool.exe+'.exe')
+    folder=root/'tools'/tool.category
+    folder.mkdir(parents=True, exist_ok=True)
+    dest=folder/(tool.exe+'.exe')
     shutil.copy2(str(base), str(dest))
     copied.append(dest.name)
-print('copied', len(copied), 'tool exes into', root)"
+print('created', len(copied), 'native tool launchers in', root)" $releaseOutput $launcherOutput
+if ($LASTEXITCODE -ne 0) { throw "Tool entry point generation failed." }
+$mainExecutableName = (-join [char[]](0x529e,0x516c,0x5de5,0x5177,0x7bb1)) + '.exe'
+Remove-Item -LiteralPath (Join-Path $releaseOutput $mainExecutableName) -Force
+& $Python -X utf8 packaging\windows\package_release.py $releaseOutput
+if ($LASTEXITCODE -ne 0) { throw "Release assembly failed." }

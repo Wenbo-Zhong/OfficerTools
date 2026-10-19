@@ -84,7 +84,10 @@ def compress(job: Job) -> Result:
         im = Image.open(path)
         if max_edge > 0 and max(im.size) > max_edge:
             im.thumbnail((max_edge, max_edge), RESAMPLE)
-        dest = _save(im.convert("RGB") if im.mode not in ("RGB", "L") else im, job.outdir / (safe_stem(path) + "_c"), "jpeg", quality)
+        fmt = job.opt("fmt", "auto")
+        if fmt == "auto":
+            fmt = "png" if "A" in im.getbands() or "transparency" in im.info else "webp" if path.suffix.lower() == ".webp" else "jpeg"
+        dest = _save(im, job.outdir / (safe_stem(path) + "_c"), fmt, quality)
         im.close()
         outputs.append(dest)
     return Result("已压缩 {} 张。".format(len(outputs)), outputs)
@@ -256,6 +259,8 @@ def png_to_ico(job: Job) -> Result:
 
 
 def slideshow(job: Job) -> Result:
+    import json
+    from html import escape
     title = job.opt("title") or "幻灯片"
     files = job.files()
     folder = job.outdir / "slides"
@@ -268,21 +273,32 @@ def slideshow(job: Job) -> Result:
         names.append(dest.name)
         im.close()
     html = folder / "index.html"
+    music=""
+    if job.opt("music"):
+        import shutil
+        source=job.file("music")
+        dest=folder/("music"+source.suffix)
+        shutil.copy2(str(source),str(dest))
+        music='<audio id="music" src="{}" loop></audio>'.format(escape(dest.name))
     items = ",".join('"{}"'.format(n) for n in names)
     html.write_text(
         """<!DOCTYPE html><meta charset="utf-8"><title>{title}</title>
 <style>html,body{{margin:0;background:#111;color:#eee;height:100%}}
-img{{max-width:100vw;max-height:100vh;object-fit:contain;display:block;margin:auto}}
+img{{max-width:100vw;max-height:100vh;object-fit:contain;display:block;margin:auto;animation:fade .7s}} @keyframes fade{{from{{opacity:.2}}to{{opacity:1}}}}
+nav{{position:fixed;bottom:12px;display:flex;gap:8px}}button{{padding:9px 16px;cursor:pointer}}
 body{{display:flex;align-items:center;justify-content:center;font-family:sans-serif}}</style>
-<body><img id="p"><script>
+<body><img id="p">{music}<nav><button onclick="step(-1)">上一张</button><button onclick="toggle()" id="play">播放</button><button onclick="step(1)">下一张</button><button onclick="document.documentElement.requestFullscreen()">全屏</button></nav><script>
 const files=[{items}]; let i=0; const img=document.getElementById('p');
-function show(){{img.src=files[i];}}
-document.onkeydown=e=>{{if(e.key==='ArrowRight')i=(i+1)%files.length; if(e.key==='ArrowLeft')i=(i-1+files.length)%files.length; show();}};
+let timer=null;
+function show(){{img.src=files[i];img.style.animation='none';void img.offsetWidth;img.style.animation='fade .7s';}}
+function step(n){{i=(i+n+files.length)%files.length;show();}}
+function toggle(){{const audio=document.getElementById('music');if(timer){{clearInterval(timer);timer=null;if(audio)audio.pause();}}else{{timer=setInterval(()=>step(1),{interval});if(audio)audio.play().catch(()=>{{}});}}document.getElementById('play').textContent=timer?'暂停':'播放';}}
+document.onkeydown=e=>{{if(e.key==='ArrowRight')step(1);if(e.key==='ArrowLeft')step(-1);if(e.code==='Space'){{e.preventDefault();toggle();}}}};
 show();
-</script></body>""".format(title=title, items=items),
+</script></body>""".format(title=escape(title), items=items, music=music, interval=max(200,int(job.number("interval",4)*1000))),
         encoding="utf-8",
     )
-    return Result("幻灯片已生成，用方向键切换。图片按原始像素显示。", [html])
+    return Result("幻灯片已生成，支持播放/暂停、循环、淡入、全屏和背景音乐。", [html])
 
 
 def qrcode_tool(job: Job) -> Result:
@@ -308,25 +324,20 @@ def barcode_tool(job: Job) -> Result:
 
     text = job.opt("text") or "1234567890"
     module = max(1, int(job.number("module", 2)))
-    code = barcode.get("code128", text, writer=ImageWriter())
+    kind = job.opt("barcode-format", "code128")
+    code = barcode.get(kind, text, writer=ImageWriter())
     dest = job.outdir / "barcode"
     path = Path(code.save(str(dest), {"module_width": module * 0.4, "module_height": 18, "font_size": 12, "quiet_zone": 4, "dpi": 300}))
-    return Result("已生成 Code128。", [path])
+    return Result("已生成 " + kind + "。", [path])
 
 
 def pdf417_tool(job: Job) -> Result:
-    text = job.opt("text") or "HELLO"
-    # Compact PDF417 encoder is large; draw a Code128 fallback only when library lacks pdf417.
-    try:
-        import barcode
-        from barcode.writer import ImageWriter
-        if "pdf417" in barcode.provided_barcodes():
-            code = barcode.get("pdf417", text, writer=ImageWriter())
-            path = Path(code.save(str(job.outdir / "pdf417"), {"dpi": 300}))
-            return Result("已生成 PDF417。", [path])
-    except Exception:
-        pass
-    raise RuntimeError("当前 python-barcode 不包含 PDF417。请改用二维码工具，或安装带 PDF417 的条码库。")
+    from pdf417gen import encode, render_image
+    codes = encode(job.opt("text", "HELLO"), columns=int(job.number("columns",6)), security_level=int(job.number("security",2)), encoding="utf-8")
+    image = render_image(codes, scale=4, ratio=3, padding=24)
+    path = job.outdir / "pdf417.png"
+    image.save(path)
+    return Result("已生成 PDF417（UTF-8）。", [path])
 
 
 def images_to_pdf(job: Job) -> Result:
