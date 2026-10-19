@@ -125,6 +125,10 @@ class ScrollArea(object):
             self._last_frame = time.perf_counter()
             self._animation = self.canvas.after(16, self._frame)
 
+    def touchpad(self, _event, delta_x, delta_y):
+        self._stop()
+        self.canvas.tk.call("tk::ScrollByPixels", str(self.canvas), delta_x, delta_y)
+
 
 def install_wheel(root):
     def on_wheel(event):
@@ -143,22 +147,48 @@ def install_wheel(root):
     root.bind_all("<Button-4>", on_wheel)
     root.bind_all("<Button-5>", on_wheel)
 
+    def on_touchpad(event):
+        widget = getattr(event, "widget", None)
+        if widget is None:
+            x, y = root.winfo_pointerxy()
+            widget = root.winfo_containing(x, y)
+        while widget is not None:
+            if isinstance(widget, tk.Text):
+                return
+            area = getattr(widget, "_scroll_area", None)
+            if area is not None:
+                try:
+                    dx, dy = root.tk.call("tk::PreciseScrollDeltas", event.delta)
+                    dx, dy = float(dx), float(dy)
+                except (tk.TclError, TypeError, ValueError):
+                    return "break"
+                handler = getattr(area, "touchpad", None)
+                if handler:
+                    handler(event, dx, dy)
+                else:
+                    canvas = getattr(area, "canvas", area)
+                    canvas.tk.call("tk::ScrollByPixels", str(canvas), dx, dy)
+                return "break"
+            widget = getattr(widget, "master", None)
+
+    # Tk 9 emits high-resolution trackpad input as a separate event. Older
+    # Tk releases do not recognize this binding, so keep mouse-wheel support.
+    try:
+        root.bind_all("<TouchpadScroll>", on_touchpad)
+    except tk.TclError:
+        pass
+
 
 def pill(parent, text, command, app, primary=False):
     if sys.platform == "darwin":
         return ttk.Button(
-            parent, text=text, command=command,
-            style="Primary.Pill.TButton" if primary else "Pill.TButton",
+            parent, text=text, command=command, style="TButton",
+            default="active" if primary else "normal", cursor="hand2",
         )
-    bg = ACCENT if primary else CARD
-    fg = ON_ACCENT if primary else INK
-    active = ACCENT_ACTIVE if primary else BUTTON_HOVER
-    return tk.Button(
-        parent, text=text, command=command, font=app.font,
-        bg=bg, fg=fg, activebackground=active, activeforeground=fg,
-        relief="flat", bd=0, cursor="hand2",
-        padx=app.px(14), pady=app.px(7),
-        highlightthickness=0,
+    return ttk.Button(
+        parent, text=text, command=command,
+        style="Primary.Pill.TButton" if primary else "Pill.TButton",
+        cursor="hand2",
     )
 
 
@@ -294,14 +324,14 @@ class App(object):
             family = "TkDefaultFont"
         self.family = family
         self.font = tkfont.Font(family=family, size=11)
-        self.font_small = tkfont.Font(family=family, size=9)
-        self.font_title = tkfont.Font(family=family, size=21, weight="bold")
+        self.font_small = tkfont.Font(family=family, size=10)
+        self.font_title = tkfont.Font(family=family, size=20, weight="bold")
         self.font_card = tkfont.Font(family=family, size=12, weight="bold")
 
     def _style_ttk(self):
         style = ttk.Style(self.root)
         try:
-            style.theme_use("clam")
+            style.theme_use("aqua" if sys.platform == "darwin" else "clam")
         except tk.TclError:
             pass
         style.configure(".", background=PAGE, foreground=INK, font=self.font)
@@ -316,16 +346,21 @@ class App(object):
         style.map("TCheckbutton", background=[("active", PAGE)], foreground=[("active", INK)],
                   indicatorbackground=[("selected", ACCENT), ("!selected", CARD)])
         if sys.platform == "darwin":
+            style.configure("TButton", font=self.font, padding=(10, 4))
+        else:
             style.configure("Pill.TButton", background=CARD, foreground=INK,
-                            bordercolor=LINE, lightcolor=LINE, darkcolor=LINE,
-                            borderwidth=1, relief="flat", padding=(12, 7), font=self.font)
+                            bordercolor=LINE, focuscolor=ACCENT, borderwidth=1,
+                            relief="flat", padding=(12, 6), font=self.font)
             style.map("Pill.TButton", background=[("pressed", BUTTON_HOVER), ("active", BUTTON_HOVER)],
                       foreground=[("disabled", MUTED)])
             style.configure("Primary.Pill.TButton", background=ACCENT, foreground=ON_ACCENT,
-                            bordercolor=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT,
-                            borderwidth=1, relief="flat", padding=(12, 7), font=self.font)
+                            bordercolor=ACCENT, focuscolor=ACCENT_ACTIVE, borderwidth=1,
+                            relief="flat", padding=(12, 6), font=self.font)
             style.map("Primary.Pill.TButton", background=[("pressed", ACCENT_ACTIVE), ("active", ACCENT_ACTIVE)],
                       foreground=[("disabled", ON_ACCENT)])
+        style.configure("App.Horizontal.TProgressbar", thickness=self.px(6),
+                        background=ACCENT, troughcolor=CARD, bordercolor=LINE,
+                        lightcolor=ACCENT, darkcolor=ACCENT, borderwidth=0, relief="flat")
         self.root.option_add("*selectBackground", ACCENT)
         self.root.option_add("*selectForeground", ON_ACCENT)
         self.root.option_add("*TCombobox*Listbox.background", CARD)
@@ -384,9 +419,12 @@ class App(object):
         tk.Label(side, text="OfficerTools", font=self.font_card, bg=SIDE, fg=SIDE_TITLE).pack(anchor="w", padx=self.px(22), pady=(self.px(30), 0))
         tk.Label(side, text="让办公更轻松", font=self.font_small, bg=SIDE, fg=SIDE_MUTED).pack(anchor="w", padx=self.px(22), pady=(self.px(6), self.px(26)))
         tk.Label(side, text="工作空间", font=self.font_small, bg=SIDE, fg=SIDE_MUTED).pack(anchor="w", padx=self.px(24), pady=(0, self.px(8)))
-        tk.Button(side, text="关于与开源许可", font=self.font_small, bg=SIDE, fg=SIDE_MUTED,
-                  activebackground=SIDE_ACTIVE, activeforeground=SIDE_SELECTED, relief="flat", bd=0,
-                  cursor="hand2", command=self.show_about).pack(side="bottom", pady=self.px(20))
+        about = tk.Label(side, text="关于与开源许可", font=self.font_small, bg=SIDE, fg=SIDE_MUTED,
+                         cursor="hand2", padx=8, pady=5)
+        about.bind("<Button-1>", lambda _event: self.show_about())
+        about.bind("<Enter>", lambda _event: about.configure(fg=SIDE_SELECTED))
+        about.bind("<Leave>", lambda _event: about.configure(fg=SIDE_MUTED))
+        about.pack(side="bottom", pady=self.px(20))
         nav_host = tk.Frame(side, bg=SIDE)
         nav_host.pack(fill="both", expand=True)
         self.nav_area = ScrollArea(nav_host, SIDE)
@@ -417,9 +455,12 @@ class App(object):
         self.query.trace_add("write", lambda *_: self.refresh())
         self.root.bind("<Control-f>", lambda e: entry.focus_set())
         entry.bind("<Escape>", lambda e: self.query.set(""))
-        tk.Button(search_wrap, text="×", command=lambda: self.query.set(""), font=self.font,
-                  bg=CARD, fg=MUTED, activebackground=PAGE, relief="flat", bd=0,
-                  cursor="hand2", takefocus=True).pack(side="left", padx=(0, self.px(6)))
+        clear = tk.Label(search_wrap, text="×", font=self.font, bg=CARD, fg=MUTED,
+                         cursor="hand2", padx=8, pady=5)
+        clear.bind("<Button-1>", lambda _event: self.query.set(""))
+        clear.bind("<Enter>", lambda _event: clear.configure(fg=INK))
+        clear.bind("<Leave>", lambda _event: clear.configure(fg=MUTED))
+        clear.pack(side="left", padx=(0, self.px(6)))
 
         info = tk.Frame(main, bg=PAGE)
         info.pack(fill="x", padx=self.px(28), pady=(0, self.px(16)))
@@ -524,9 +565,9 @@ class App(object):
         icon = tk.Label(head, image=tool_icon(self, tool), bg=CARD)
         icon.pack(side="left")
         star = "★" if tool.id in self.state["favorites"] else "☆"
-        mark = tk.Button(head, text=star, font=self.font_card, bg=CARD, fg=ACCENT if star == "★" else MUTED,
-                         activebackground=PAGE, activeforeground=ACCENT, relief="flat", bd=0, cursor="hand2",
-                         command=lambda t=tool: self.toggle_fav(t))
+        mark = tk.Label(head, text=star, font=self.font_card, bg=CARD, fg=ACCENT if star == "★" else MUTED,
+                        cursor="hand2", padx=5, pady=2)
+        mark.bind("<Button-1>", lambda _event, t=tool: self.toggle_fav(t))
         mark.pack(side="right", anchor="n")
         name = tk.Label(frame, text=tool.name, font=self.font_card, bg=CARD, fg=INK, anchor="w")
         name.pack(fill="x", padx=self.px(16), pady=(self.px(12), 0))
@@ -602,7 +643,8 @@ class ToolWindow(object):
         titles.pack(side="left", fill="x", expand=True)
         tk.Label(titles, text=tool.category, font=app.font_small, bg=PAGE, fg=category_colors(app.theme == "dark")[tool.category][0]).pack(anchor="w")
         tk.Label(titles, text=tool.name, font=app.font_title, bg=PAGE, fg=INK).pack(anchor="w", pady=(2, 0))
-        summary = tk.Label(frm, text=tool.summary, font=app.font, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left")
+        summary = tk.Label(frm, text=tool.summary, font=app.font, bg=PAGE, fg=MUTED,
+                           wraplength=app.px(700), justify="left", anchor="w")
         summary.pack(anchor="w", fill="x", pady=(4, app.px(14)))
         self._wrapping_labels.append(summary)
         if tool.id in UI_ONLY or tool.id == "calc":
@@ -629,7 +671,7 @@ class ToolWindow(object):
             tk.Label(frm, text=field.label, font=app.font_small, bg=PAGE, fg=MUTED).pack(anchor="w", pady=(app.px(8), 2))
             if field.kind in ("text", "number"):
                 var = tk.StringVar(value=field.default)
-                tk.Entry(frm, textvariable=var, show="•" if "password" in field.key else "", font=app.font, bg=CARD, fg=INK, relief="flat", highlightbackground=LINE, highlightthickness=1, insertbackground=INK).pack(fill="x", ipady=app.px(6))
+                tk.Entry(frm, textvariable=var, show="•" if "password" in field.key else "", font=app.font, bg=CARD, fg=INK, relief="flat", highlightbackground=LINE, highlightthickness=1, insertbackground=INK).pack(fill="x", ipady=app.px(3))
                 self.vars[field.key] = var
                 if field.key == "bbox":
                     pill(frm,"在屏幕上选择区域",lambda v=var:self.select_region(v),app).pack(anchor="w",pady=4)
@@ -650,14 +692,15 @@ class ToolWindow(object):
                 row = tk.Frame(frm, bg=PAGE)
                 row.pack(fill="x")
                 var = tk.StringVar()
-                tk.Entry(row, textvariable=var, font=app.font, bg=CARD, fg=INK, relief="flat", highlightbackground=LINE, highlightthickness=1, insertbackground=INK).pack(side="left", fill="x", expand=True, ipady=app.px(6))
+                tk.Entry(row, textvariable=var, font=app.font, bg=CARD, fg=INK, relief="flat", highlightbackground=LINE, highlightthickness=1, insertbackground=INK).pack(side="left", fill="x", expand=True, ipady=app.px(3))
                 pill(row, "浏览", lambda f=field, v=var: self.browse(f, v), app).pack(side="left", padx=(8, 0))
                 if field.kind == "files":
                     pill(row, "+文件夹", lambda v=var: self.add_folder(v), app).pack(side="left", padx=4)
                     pill(row, "排序/移除", lambda v=var:self.manage_queue(v), app).pack(side="left")
                 self.vars[field.key] = var
             if field.help:
-                help_label = tk.Label(frm, text=field.help, font=app.font_small, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left")
+                help_label = tk.Label(frm, text=field.help, font=app.font_small, bg=PAGE, fg=MUTED,
+                                      wraplength=app.px(700), justify="left", anchor="w")
                 help_label.pack(anchor="w", fill="x", pady=(2, 0))
                 self._wrapping_labels.append(help_label)
         bar = tk.Frame(frm, bg=PAGE)
@@ -666,7 +709,7 @@ class ToolWindow(object):
         pill(bar, "打开输出文件夹", self.open_out, app).pack(side="left", padx=8)
         pill(bar, "输出位置", self.choose_output, app).pack(side="left")
         pill(bar, "取消", self.cancel_event.set, app).pack(side="left", padx=8)
-        self.progress = ttk.Progressbar(frm, maximum=100)
+        self.progress = ttk.Progressbar(frm, maximum=100, style="App.Horizontal.TProgressbar")
         self.progress.pack(fill="x", pady=(8, 0))
         self.win.bind("<Destroy>",lambda event:self.cancel_event.set() if event.widget==self.win else None,add="+")
 
@@ -968,6 +1011,10 @@ class ViewerTool(object):
         self.canvas._scroll_area = self.canvas
 
         self.canvas.wheel = self._wheel
+        self.canvas.touchpad = self._touchpad
+
+    def _touchpad(self, _event, delta_x, delta_y):
+        self.canvas.tk.call("tk::ScrollByPixels", str(self.canvas), delta_x, delta_y)
 
     def _wheel(self, event):
         delta = getattr(event, "delta", 0)
@@ -1034,6 +1081,7 @@ class PdfViewerTool(ViewerTool):
         tk.Entry(search_bar,textvariable=self.search,width=14).pack(side="left")
         pill(search_bar,"查找下一页",self.find,host.app).pack(side="left",padx=4)
         self.canvas.wheel = self._wheel_page
+        self.canvas.touchpad = self._touchpad_page
         host.win.bind("<Destroy>",self.close,add="+")
 
     def _wheel_page(self, event):
@@ -1055,6 +1103,20 @@ class PdfViewerTool(ViewerTool):
             return
         step = -3 if direction < 0 else 3
         self.canvas.yview_scroll(step, "units")
+
+    def _touchpad_page(self, event, delta_x, delta_y):
+        if not self.document or not delta_y:
+            return self._touchpad(event, delta_x, delta_y)
+        first, last = self.canvas.yview()
+        direction = 1 if delta_y < 0 else -1
+        at_edge = (direction > 0 and last >= 0.999) or (direction < 0 and first <= 0.001)
+        if at_edge:
+            next_page = self.page + direction
+            if 0 <= next_page < len(self.document):
+                self.go(next_page)
+                self.canvas.yview_moveto(0 if direction > 0 else 1)
+            return
+        self._touchpad(event, delta_x, delta_y)
 
     def close(self,event):
         if event.widget == self.host.win and self.document:
