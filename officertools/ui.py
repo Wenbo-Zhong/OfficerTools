@@ -145,6 +145,11 @@ def install_wheel(root):
 
 
 def pill(parent, text, command, app, primary=False):
+    if sys.platform == "darwin":
+        return ttk.Button(
+            parent, text=text, command=command,
+            style="Primary.Pill.TButton" if primary else "Pill.TButton",
+        )
     bg = ACCENT if primary else CARD
     fg = ON_ACCENT if primary else INK
     active = ACCENT_ACTIVE if primary else BUTTON_HOVER
@@ -310,6 +315,17 @@ class App(object):
         style.configure("TCheckbutton", background=PAGE, foreground=INK)
         style.map("TCheckbutton", background=[("active", PAGE)], foreground=[("active", INK)],
                   indicatorbackground=[("selected", ACCENT), ("!selected", CARD)])
+        if sys.platform == "darwin":
+            style.configure("Pill.TButton", background=CARD, foreground=INK,
+                            bordercolor=LINE, lightcolor=LINE, darkcolor=LINE,
+                            borderwidth=1, relief="flat", padding=(12, 7), font=self.font)
+            style.map("Pill.TButton", background=[("pressed", BUTTON_HOVER), ("active", BUTTON_HOVER)],
+                      foreground=[("disabled", MUTED)])
+            style.configure("Primary.Pill.TButton", background=ACCENT, foreground=ON_ACCENT,
+                            bordercolor=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT,
+                            borderwidth=1, relief="flat", padding=(12, 7), font=self.font)
+            style.map("Primary.Pill.TButton", background=[("pressed", ACCENT_ACTIVE), ("active", ACCENT_ACTIVE)],
+                      foreground=[("disabled", ON_ACCENT)])
         self.root.option_add("*selectBackground", ACCENT)
         self.root.option_add("*selectForeground", ON_ACCENT)
         self.root.option_add("*TCombobox*Listbox.background", CARD)
@@ -572,6 +588,7 @@ class ToolWindow(object):
         self.worker = None
         self.cancel_event = threading.Event()
         self.output_folder = None
+        self._wrapping_labels = []
         pad = app.px(22)
         host = tk.Frame(self.win, bg=PAGE)
         host.pack(fill="both", expand=True)
@@ -585,11 +602,14 @@ class ToolWindow(object):
         titles.pack(side="left", fill="x", expand=True)
         tk.Label(titles, text=tool.category, font=app.font_small, bg=PAGE, fg=category_colors(app.theme == "dark")[tool.category][0]).pack(anchor="w")
         tk.Label(titles, text=tool.name, font=app.font_title, bg=PAGE, fg=INK).pack(anchor="w", pady=(2, 0))
-        tk.Label(frm, text=tool.summary, font=app.font, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left").pack(anchor="w", pady=(4, app.px(14)))
+        summary = tk.Label(frm, text=tool.summary, font=app.font, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left")
+        summary.pack(anchor="w", fill="x", pady=(4, app.px(14)))
+        self._wrapping_labels.append(summary)
         if tool.id in UI_ONLY or tool.id == "calc":
             self._special(frm)
         else:
             self._form(frm)
+        frm.bind("<Configure>", self._fit_wrapping_labels, add="+")
         self.log = scrolledtext.ScrolledText(
             frm, height=10, font=app.font, wrap="word",
             bg=CARD, fg=INK, insertbackground=INK, relief="flat",
@@ -597,6 +617,11 @@ class ToolWindow(object):
         )
         self.log.pack(fill="x", pady=(pad, 0))
         self.log.vbar.configure(bg=SCROLL, activebackground=SCROLL_HOVER, troughcolor=CARD, relief="flat", bd=0)
+
+    def _fit_wrapping_labels(self, event):
+        width = max(self.app.px(140), min(self.app.px(700), event.width - self.app.px(8)))
+        for label in self._wrapping_labels:
+            label.configure(wraplength=width)
 
     def _form(self, frm):
         app = self.app
@@ -632,7 +657,9 @@ class ToolWindow(object):
                     pill(row, "排序/移除", lambda v=var:self.manage_queue(v), app).pack(side="left")
                 self.vars[field.key] = var
             if field.help:
-                tk.Label(frm, text=field.help, font=app.font_small, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left").pack(anchor="w", pady=(2, 0))
+                help_label = tk.Label(frm, text=field.help, font=app.font_small, bg=PAGE, fg=MUTED, wraplength=app.px(700), justify="left")
+                help_label.pack(anchor="w", fill="x", pady=(2, 0))
+                self._wrapping_labels.append(help_label)
         bar = tk.Frame(frm, bg=PAGE)
         bar.pack(fill="x", pady=(app.px(16), 0))
         pill(bar, "开始", self.execute, app, primary=True).pack(side="left")
@@ -940,14 +967,22 @@ class ViewerTool(object):
         self.canvas.pack(side="left", fill="both", expand=True)
         self.canvas._scroll_area = self.canvas
 
-        def wheel(event, canvas=self.canvas):
-            step = int(-event.delta / 120 * 3) or (-3 if event.delta > 0 else 3)
-            if getattr(event, "state", 0) & 0x1:
-                canvas.xview_scroll(step, "units")
-            else:
-                canvas.yview_scroll(step, "units")
+        self.canvas.wheel = self._wheel
 
-        self.canvas.wheel = wheel
+    def _wheel(self, event):
+        delta = getattr(event, "delta", 0)
+        if getattr(event, "num", None) == 4:
+            step = -3
+        elif getattr(event, "num", None) == 5:
+            step = 3
+        elif delta:
+            step = int(-delta / 120 * 3) or (-3 if delta > 0 else 3)
+        else:
+            return
+        if getattr(event, "state", 0) & 0x1:
+            self.canvas.xview_scroll(step, "units")
+        else:
+            self.canvas.yview_scroll(step, "units")
 
     def load(self):
         from PIL import Image
@@ -983,15 +1018,43 @@ class PdfViewerTool(ViewerTool):
         self.page = 0
         self.page_number = tk.StringVar(value="1")
         self.search = tk.StringVar()
-        bar = tk.Frame(host.win, bg=PAGE)
-        bar.pack(fill="x", padx=22, pady=4)
-        pill(bar,"上一页",lambda:self.go(self.page-1),host.app).pack(side="left")
-        pill(bar,"下一页",lambda:self.go(self.page+1),host.app).pack(side="left",padx=4)
-        tk.Entry(bar,textvariable=self.page_number,width=5).pack(side="left")
-        pill(bar,"跳页",self.jump,host.app).pack(side="left",padx=4)
-        tk.Entry(bar,textvariable=self.search,width=14).pack(side="left")
-        pill(bar,"查找下一页",self.find,host.app).pack(side="left",padx=4)
+        if sys.platform == "darwin":
+            navigation = tk.Frame(host.win, bg=PAGE)
+            navigation.pack(fill="x", padx=22, pady=(4, 1))
+            search_bar = tk.Frame(host.win, bg=PAGE)
+            search_bar.pack(fill="x", padx=22, pady=(1, 4))
+        else:
+            navigation = tk.Frame(host.win, bg=PAGE)
+            navigation.pack(fill="x", padx=22, pady=4)
+            search_bar = navigation
+        pill(navigation,"上一页",lambda:self.go(self.page-1),host.app).pack(side="left")
+        pill(navigation,"下一页",lambda:self.go(self.page+1),host.app).pack(side="left",padx=4)
+        tk.Entry(navigation,textvariable=self.page_number,width=5).pack(side="left")
+        pill(navigation,"跳页",self.jump,host.app).pack(side="left",padx=4)
+        tk.Entry(search_bar,textvariable=self.search,width=14).pack(side="left")
+        pill(search_bar,"查找下一页",self.find,host.app).pack(side="left",padx=4)
+        self.canvas.wheel = self._wheel_page
         host.win.bind("<Destroy>",self.close,add="+")
+
+    def _wheel_page(self, event):
+        """Scroll within a page, then let macOS wheel/trackpad gestures change pages."""
+        if sys.platform != "darwin" or not self.document:
+            return self._wheel(event)
+        number = getattr(event, "num", None)
+        delta = getattr(event, "delta", 0)
+        direction = -1 if number == 4 or delta > 0 else 1 if number == 5 or delta < 0 else 0
+        if not direction:
+            return
+        first, last = self.canvas.yview()
+        at_edge = (direction > 0 and last >= 0.999) or (direction < 0 and first <= 0.001)
+        if at_edge:
+            next_page = self.page + direction
+            if 0 <= next_page < len(self.document):
+                self.go(next_page)
+                self.canvas.yview_moveto(0 if direction > 0 else 1)
+            return
+        step = -3 if direction < 0 else 3
+        self.canvas.yview_scroll(step, "units")
 
     def close(self,event):
         if event.widget == self.host.win and self.document:
